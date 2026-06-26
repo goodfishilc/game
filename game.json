@@ -1,0 +1,22 @@
+{
+  "games": [
+    {
+      "file": "convenience_store.html",
+      "label": "便利商店",
+      "emoji": "🏪",
+      "className": "btn-convenience-store"
+    },
+    {
+      "file": "game.html",
+      "label": "遊戲",
+      "emoji": "🎯",
+      "className": "btn-game"
+    },
+    {
+      "file": "snake.html",
+      "label": "貪食蛇大戰",
+      "emoji": "🐍",
+      "className": "btn-game"
+    }
+  ]
+}
