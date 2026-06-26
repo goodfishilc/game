@@ -76,10 +76,10 @@
             color: #2c3e50;
             padding: 15px;
             border-radius: 8px;
-            font-size: 36px; /* 初始字體大小 */
+            font-size: 24px; /* 初始字體大小 */
             font-weight: bold;
             width: 100%;
-            max-width: 1200px;
+            max-width: 600px;
             text-align: center;
             margin-bottom: 15px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
@@ -125,12 +125,12 @@
         <div class="setting-group">
             <div class="setting-item">
                 <label for="fontSizeSlider">🔤 全域字體大小:</label>
-                <input type="range" id="fontSizeSlider" min="16" max="300" value="24">
+                <input type="range" id="fontSizeSlider" min="16" max="40" value="24">
                 <span id="fontSizeVal">24px</span>
             </div>
             <div class="setting-item">
                 <label for="canvasWidthSlider">🖥️ 遊戲畫面寬度:</label>
-                <input type="range" id="canvasWidthSlider" min="400" max="1200" step="50" value="600">
+                <input type="range" id="canvasWidthSlider" min="400" max="1000" step="50" value="600">
                 <span id="canvasWidthVal">600px</span>
             </div>
         </div>
@@ -157,7 +157,7 @@
         const questionBox = document.getElementById("questionBox");
 
         // 遊戲核心變數與字體全域變數
-        let currentFontSize = 36; // 新增：紀錄目前調整的字體大小
+        let currentFontSize = 24; 
         let snake = [];
         let snakeLength = 5;
         let speed = 4; 
@@ -171,7 +171,7 @@
 
         // --- 介面縮放即時監聽 ---
         fontSizeSlider.addEventListener("input", (e) => {
-            currentFontSize = parseInt(e.target.value); // 同步更新字體變數
+            currentFontSize = parseInt(e.target.value); 
             document.getElementById("fontSizeVal").textContent = currentFontSize + "px";
             questionBox.style.fontSize = currentFontSize + "px";
         });
@@ -269,6 +269,7 @@
             isGameOver = false;
             score = 0;
             currentQuestionIndex = 0;
+            snakeLength = 5; // 確保初始長度正確
             document.getElementById('score').textContent = score;
             
             snake = [];
@@ -285,7 +286,7 @@
         // 載入題目
         function loadQuestion() {
             if (currentQuestionIndex >= questions.length) {
-                alert("🎉 恭喜你答完了所有題目！太厲害了！");
+                alert(`🎉 恭喜你完成所有題目！\n最終得分: ${score}`);
                 location.reload();
                 return;
             }
@@ -335,6 +336,7 @@
         function checkCollisions() {
             let head = snake[0];
 
+            // 撞牆目前依然保留為結束遊戲（若想改成撞牆也不死可另外告訴我）
             if (head.x < 0 || head.x > canvas.width || head.y < 0 || head.y > canvas.height) {
                 gameOver("💥 撞牆啦！遊戲結束！");
                 return;
@@ -350,14 +352,20 @@
                     const currentAnswer = questions[currentQuestionIndex].answer;
                     
                     if (food.type === currentAnswer) {
+                        // 【答對】加 10 分，蛇變長
                         score += 10;
                         snakeLength += 3; 
-                        document.getElementById('score').textContent = score;
-                        currentQuestionIndex++;
-                        loadQuestion();
                     } else {
-                        gameOver(`❌ 答錯囉！正確答案是 (${currentAnswer})。`);
+                        // 【答錯】新機制：扣 5 分，蛇縮短，不結束遊戲
+                        score -= 5;
+                        snakeLength = Math.max(5, snakeLength - 3); // 縮短但最少保持 5 節長度
+                        alert(`❌ 答錯囉！正確答案是 (${currentAnswer})。扣 5 分！繼續下一題。`);
                     }
+                    
+                    // 更新分數看板，並直接載入下一題
+                    document.getElementById('score').textContent = score;
+                    currentQuestionIndex++;
+                    loadQuestion();
                     break;
                 }
             }
@@ -369,7 +377,6 @@
 
             // 繪製食物選項
             foods.forEach(food => {
-                // 根據字體大小動態微調食物球球的半徑（字越大，球自動變大，才裝得下 A B C）
                 const dynamicRadius = Math.max(20, currentFontSize * 0.8);
                 food.radius = dynamicRadius;
 
@@ -382,7 +389,6 @@
                 ctx.stroke();
                 ctx.closePath();
 
-                // 畫 A, B, C 字母（與調整的字體聯動，但限制最小 14px）
                 ctx.fillStyle = "white";
                 const labelSize = Math.max(14, Math.round(currentFontSize * 0.7));
                 ctx.font = `bold ${labelSize}px Arial`;
@@ -390,10 +396,8 @@
                 ctx.textBaseline = "middle";
                 ctx.fillText(food.type, food.x, food.y - 2);
                 
-                // 畫答案的文字內容（完全同步拉桿的 currentFontSize大小）
                 ctx.font = `${currentFontSize}px 'Microsoft JhengHei'`;
                 ctx.fillStyle = "#ecf0f1";
-                // 根據動態球體大小向下位移，避免重疊
                 ctx.fillText(food.text, food.x, food.y + food.radius + currentFontSize + 5);
             });
 
