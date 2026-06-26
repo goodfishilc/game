@@ -32,7 +32,7 @@
             text-align: center;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             width: 100%;
-            max-width: 600px;
+            max-width: 800px;
         }
 
         .setting-group {
@@ -74,12 +74,12 @@
         #questionBox {
             background: #f1c40f;
             color: #2c3e50;
-            padding: 15px;
+            padding: 20px;
             border-radius: 8px;
-            font-size: 24px; /* 初始字體大小 */
+            font-size: 66px; /* 預設 66px */
             font-weight: bold;
             width: 100%;
-            max-width: 600px;
+            max-width: 1200px; 
             text-align: center;
             margin-bottom: 15px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
@@ -97,18 +97,27 @@
 
         canvas {
             display: block;
-            cursor: crosshair; /* 滑鼠游標變成十字準心 */
+            cursor: crosshair; 
         }
 
         .score-board {
             display: flex;
             gap: 40px;
-            font-size: 1.4em;
+            font-size: 1.8em;
             margin-top: 15px;
             font-weight: bold;
             background: rgba(0,0,0,0.4);
             padding: 10px 30px;
             border-radius: 20px;
+        }
+        
+        #wrongNotice {
+            color: #ff4757;
+            font-size: 1.4em;
+            margin-top: 10px;
+            font-weight: bold;
+            min-height: 1.5em;
+            transition: all 0.2s;
         }
     </style>
 </head>
@@ -125,13 +134,13 @@
         <div class="setting-group">
             <div class="setting-item">
                 <label for="fontSizeSlider">🔤 全域字體大小:</label>
-                <input type="range" id="fontSizeSlider" min="16" max="40" value="24">
-                <span id="fontSizeVal">24px</span>
+                <input type="range" id="fontSizeSlider" min="20" max="100" value="66">
+                <span id="fontSizeVal">66px</span>
             </div>
             <div class="setting-item">
                 <label for="canvasWidthSlider">🖥️ 遊戲畫面寬度:</label>
-                <input type="range" id="canvasWidthSlider" min="400" max="1000" step="50" value="600">
-                <span id="canvasWidthVal">600px</span>
+                <input type="range" id="canvasWidthSlider" min="400" max="1600" step="50" value="1200">
+                <span id="canvasWidthVal">1200px</span>
             </div>
         </div>
     </div>
@@ -139,8 +148,9 @@
     <div id="gameContainer">
         <div id="questionBox">載入題目中...</div>
         <div class="canvas-wrapper">
-            <canvas id="gameCanvas" width="600" height="400"></canvas>
+            <canvas id="gameCanvas" width="1200" height="800"></canvas>
         </div>
+        <div id="wrongNotice"></div>
         <div class="score-board">
             <div>得分: <span id="score">0</span></div>
             <div>目前關卡: <span id="level">1</span></div>
@@ -151,25 +161,24 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // 介面調整元素
         const fontSizeSlider = document.getElementById("fontSizeSlider");
         const canvasWidthSlider = document.getElementById("canvasWidthSlider");
         const questionBox = document.getElementById("questionBox");
+        const wrongNotice = document.getElementById("wrongNotice");
 
-        // 遊戲核心變數與字體全域變數
-        let currentFontSize = 24; 
+        let currentFontSize = 66; 
         let snake = [];
         let snakeLength = 5;
-        let speed = 4; 
-        let mouseX = 300, mouseY = 200; 
+        let speed = 5; 
+        let mouseX = 600, mouseY = 400; 
         let questions = [];
         let currentQuestionIndex = 0;
         let score = 0;
         let gameInterval;
         let foods = []; 
         let isGameOver = false;
+        let noticeTimeout;
 
-        // --- 介面縮放即時監聽 ---
         fontSizeSlider.addEventListener("input", (e) => {
             currentFontSize = parseInt(e.target.value); 
             document.getElementById("fontSizeVal").textContent = currentFontSize + "px";
@@ -196,17 +205,14 @@
             }
         });
 
-        // 監聽 Excel 檔案上傳
         document.getElementById('excelFile').addEventListener('change', handleExcelUpload);
 
-        // 監聽滑鼠在 Canvas 上的移動
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             mouseX = e.clientX - rect.left;
             mouseY = e.clientY - rect.top;
         });
 
-        // 解析 Excel 檔案
         function handleExcelUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -264,13 +270,13 @@
             reader.readAsBinaryString(file);
         }
 
-        // 開始遊戲
         function startGame() {
             isGameOver = false;
             score = 0;
             currentQuestionIndex = 0;
-            snakeLength = 5; // 確保初始長度正確
+            snakeLength = 5; 
             document.getElementById('score').textContent = score;
+            wrongNotice.textContent = "";
             
             snake = [];
             for (let i = 0; i < snakeLength; i++) {
@@ -283,10 +289,11 @@
             gameInterval = setInterval(gameLoop, 1000 / 60); 
         }
 
-        // 載入題目
         function loadQuestion() {
             if (currentQuestionIndex >= questions.length) {
-                alert(`🎉 恭喜你完成所有題目！\n最終得分: ${score}`);
+                isGameOver = true;
+                clearInterval(gameInterval);
+                alert(`🎉 恭喜你順利答完全部題目！\n最終得分: ${score}`);
                 location.reload();
                 return;
             }
@@ -299,13 +306,11 @@
             foods = options.map(opt => ({
                 type: opt,
                 text: q[opt],
-                x: Math.random() * (canvas.width - 120) + 60,
-                y: Math.random() * (canvas.height - 120) + 60,
-                radius: 20
+                x: Math.random() * (canvas.width - 300) + 150,
+                y: Math.random() * (canvas.height - 200) + 100
             }));
         }
 
-        // 遊戲主要循環
         function gameLoop() {
             if (isGameOver) return;
             updateSnake();
@@ -313,7 +318,6 @@
             drawGame();
         }
 
-        // 更新蛇的位置
         function updateSnake() {
             let head = { ...snake[0] };
             let dx = mouseX - head.x;
@@ -332,11 +336,9 @@
             }
         }
 
-        // 檢查碰撞
         function checkCollisions() {
             let head = snake[0];
 
-            // 撞牆目前依然保留為結束遊戲（若想改成撞牆也不死可另外告訴我）
             if (head.x < 0 || head.x > canvas.width || head.y < 0 || head.y > canvas.height) {
                 gameOver("💥 撞牆啦！遊戲結束！");
                 return;
@@ -348,63 +350,52 @@
                 let dy = head.y - food.y;
                 let dist = Math.sqrt(dx * dx + dy * dy);
 
-                if (dist < 12 + food.radius) {
+                // 動態碰撞判定距離：依據目前字體大小決定（字越大判定範圍大一點）
+                const collisionRange = Math.max(25, currentFontSize * 0.8);
+
+                if (dist < 12 + collisionRange) {
                     const currentAnswer = questions[currentQuestionIndex].answer;
                     
                     if (food.type === currentAnswer) {
-                        // 【答對】加 10 分，蛇變長
                         score += 10;
                         snakeLength += 3; 
+                        document.getElementById('score').textContent = score;
+                        currentQuestionIndex++; 
+                        loadQuestion();
                     } else {
-                        // 【答錯】新機制：扣 5 分，蛇縮短，不結束遊戲
                         score -= 5;
-                        snakeLength = Math.max(5, snakeLength - 3); // 縮短但最少保持 5 節長度
-                        alert(`❌ 答錯囉！正確答案是 (${currentAnswer})。扣 5 分！繼續下一題。`);
+                        snakeLength = Math.max(5, snakeLength - 3); 
+                        document.getElementById('score').textContent = score;
+                        
+                        clearTimeout(noticeTimeout);
+                        wrongNotice.textContent = `❌ 答錯囉！扣 5 分。本題重新挑戰！`;
+                        noticeTimeout = setTimeout(() => { wrongNotice.textContent = ""; }, 2000);
+                        
+                        loadQuestion();
                     }
-                    
-                    // 更新分數看板，並直接載入下一題
-                    document.getElementById('score').textContent = score;
-                    currentQuestionIndex++;
-                    loadQuestion();
                     break;
                 }
             }
         }
 
-        // 繪製畫面
         function drawGame() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 繪製食物選項
+            // 繪製純文字選項
             foods.forEach(food => {
-                const dynamicRadius = Math.max(20, currentFontSize * 0.8);
-                food.radius = dynamicRadius;
-
-                ctx.beginPath();
-                ctx.arc(food.x, food.y, food.radius, 0, Math.PI * 2);
-                ctx.fillStyle = food.type === 'A' ? '#e74c3c' : food.type === 'B' ? '#2ecc71' : '#3498db';
-                ctx.fill();
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = '#fff';
-                ctx.stroke();
-                ctx.closePath();
-
-                ctx.fillStyle = "white";
-                const labelSize = Math.max(14, Math.round(currentFontSize * 0.7));
-                ctx.font = `bold ${labelSize}px Arial`;
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText(food.type, food.x, food.y - 2);
-                
                 ctx.font = `${currentFontSize}px 'Microsoft JhengHei'`;
                 ctx.fillStyle = "#ecf0f1";
-                ctx.fillText(food.text, food.x, food.y + food.radius + currentFontSize + 5);
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                
+                // 直接在隨機坐標上繪製選項內容
+                ctx.fillText(food.text, food.x, food.y);
             });
 
             // 繪製蛇
             snake.forEach((part, index) => {
                 ctx.beginPath();
-                let radius = index === 0 ? 12 : Math.max(7, 12 - index * 0.2);
+                let radius = index === 0 ? 14 : Math.max(8, 14 - index * 0.2);
                 ctx.arc(part.x, part.y, radius, 0, Math.PI * 2);
                 ctx.fillStyle = index === 0 ? "#00FF00" : (index % 2 === 0 ? "#27ae60" : "#2ecc71");
                 ctx.fill();
