@@ -3,9 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>滑鼠操控貪食蛇 - Excel 題目版</title>
+    <title>可調式問答貪食蛇 - Excel 題目版</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: 'Microsoft JhengHei', Arial, sans-serif;
             background: #2c3e50;
@@ -15,22 +18,48 @@
             align-items: center;
             padding: 20px;
             margin: 0;
-            overflow-x: hidden;
+            min-height: 100vh;
         }
 
         h1 { margin-bottom: 10px; }
 
-        .setup-container {
+        /* 設定與控制面板 */
+        .control-panel {
             background: #34495e;
-            padding: 15px 25px;
-            border-radius: 10px;
+            padding: 20px;
+            border-radius: 12px;
             margin-bottom: 15px;
             text-align: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .setting-group {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 15px;
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 8px;
+            gap: 10px;
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .setting-item label {
+            font-weight: bold;
+            font-size: 0.95em;
         }
 
         .file-input {
-            margin-top: 10px;
+            margin-top: 5px;
             color: #ecf0f1;
         }
 
@@ -39,6 +68,7 @@
             display: none; /* 匯入成功後才顯示 */
             flex-direction: column;
             align-items: center;
+            width: 100%;
         }
 
         #questionBox {
@@ -46,44 +76,71 @@
             color: #2c3e50;
             padding: 15px;
             border-radius: 8px;
-            font-size: 1.2em;
+            font-size: 24px; /* 初始字體大小 */
             font-weight: bold;
-            max-width: 600px;
             width: 100%;
+            max-width: 600px;
             text-align: center;
             margin-bottom: 15px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: font-size 0.1s ease;
         }
 
-        canvas {
+        .canvas-wrapper {
             background: #111;
             border: 4px solid #3498db;
             border-radius: 10px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        canvas {
+            display: block;
             cursor: crosshair; /* 滑鼠游標變成十字準心 */
         }
 
         .score-board {
             display: flex;
-            gap: 20px;
-            font-size: 1.2em;
-            margin-top: 10px;
+            gap: 40px;
+            font-size: 1.4em;
+            margin-top: 15px;
             font-weight: bold;
+            background: rgba(0,0,0,0.4);
+            padding: 10px 30px;
+            border-radius: 20px;
         }
     </style>
 </head>
 <body>
 
-    <h1>🐍 滑鼠操控問答貪食蛇</h1>
+    <h1>🐍 可調式問答貪食蛇</h1>
     
-    <div class="setup-container" id="setupBox">
-        <p>請先匯入包含題目的 Excel 檔案 (`.xlsx`)</p>
-        <input type="file" id="excelFile" class="file-input" accept=".xlsx, .xls" />
+    <div class="control-panel">
+        <div id="setupBox">
+            <p style="margin:0 0 10px 0;">第一步：請先匯入題庫 Excel 檔案 (`.xlsx`)</p>
+            <input type="file" id="excelFile" class="file-input" accept=".xlsx, .xls" />
+        </div>
+        
+        <div class="setting-group">
+            <div class="setting-item">
+                <label for="fontSizeSlider">🔤 題目字體:</label>
+                <input type="range" id="fontSizeSlider" min="16" max="40" value="24">
+                <span id="fontSizeVal">24px</span>
+            </div>
+            <div class="setting-item">
+                <label for="canvasWidthSlider">🖥️ 遊戲畫面寬度:</label>
+                <input type="range" id="canvasWidthSlider" min="400" max="1000" step="50" value="600">
+                <span id="canvasWidthVal">600px</span>
+            </div>
+        </div>
     </div>
 
     <div id="gameContainer">
         <div id="questionBox">載入題目中...</div>
-        <canvas id="gameCanvas" width="600" height="400"></canvas>
+        <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="600" height="400"></canvas>
+        </div>
         <div class="score-board">
             <div>得分: <span id="score">0</span></div>
             <div>目前關卡: <span id="level">1</span></div>
@@ -94,17 +151,53 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // 遊戲變數
+        // 介面調整元素
+        const fontSizeSlider = document.getElementById("fontSizeSlider");
+        const canvasWidthSlider = document.getElementById("canvasWidthSlider");
+        const questionBox = document.getElementById("questionBox");
+
+        // 遊戲核心變數
         let snake = [];
         let snakeLength = 5;
-        let speed = 4; // 蛇移動速度
-        let mouseX = 300, mouseY = 200; // 滑鼠座標
+        let speed = 4; 
+        let mouseX = 300, mouseY = 200; 
         let questions = [];
         let currentQuestionIndex = 0;
         let score = 0;
         let gameInterval;
-        let foods = []; // 存放 A, B, C 三個選項食物
+        let foods = []; 
         let isGameOver = false;
+
+        // --- 介面縮放即時監聽 ---
+        fontSizeSlider.addEventListener("input", (e) => {
+            const size = e.target.value;
+            document.getElementById("fontSizeVal").textContent = size + "px";
+            questionBox.style.fontSize = size + "px";
+        });
+
+        canvasWidthSlider.addEventListener("input", (e) => {
+            const width = parseInt(e.target.value);
+            // 保持 3:2 的經典比例來計算高度
+            const height = Math.round(width * 2 / 3); 
+            
+            document.getElementById("canvasWidthVal").textContent = width + "px";
+            
+            // 紀錄原本的舊寬高比（用來縮放食物位置，避免縮小畫面時食物不見）
+            const oldWidth = canvas.width;
+            const oldHeight = canvas.height;
+
+            // 重新設定畫布實際解析度
+            canvas.width = width;
+            canvas.height = height;
+
+            // 如果遊戲進行中，將現有的食物坐標按比例重新分佈
+            if (foods.length > 0) {
+                foods.forEach(food => {
+                    food.x = (food.x / oldWidth) * width;
+                    food.y = (food.y / oldHeight) * height;
+                });
+            }
+        });
 
         // 監聽 Excel 檔案上傳
         document.getElementById('excelFile').addEventListener('change', handleExcelUpload);
@@ -123,33 +216,54 @@
 
             const reader = new FileReader();
             reader.onload = function(evt) {
-                const data = evt.target.result;
-                const workbook = XLSX.read(data, { type: 'binary' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                
-                // 將 Excel 轉換成 JSON 陣列
-                const jsonRows = XLSX.utils.sheet_to_json(worksheet);
-                
-                if(jsonRows.length === 0) {
-                    alert("Excel 檔案內沒有資料！");
-                    return;
+                try {
+                    const data = evt.target.result;
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonRows = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    if(jsonRows.length === 0) {
+                        alert("❌ 讀取失敗：Excel 內無資料！");
+                        return;
+                    }
+
+                    questions = jsonRows.map((row, index) => {
+                        const cleanRow = {};
+                        Object.keys(row).forEach(key => {
+                            cleanRow[key.toString().toLowerCase().trim()] = row[key];
+                        });
+
+                        const q = cleanRow['question'];
+                        const a = cleanRow['optiona'] || cleanRow['a'];
+                        const b = cleanRow['optionb'] || cleanRow['b'];
+                        const c = cleanRow['optionc'] || cleanRow['c'];
+                        const ans = cleanRow['answer'];
+
+                        if (!q || !a || !b || !c || !ans) {
+                            throw new Error(`第 ${index + 2} 列資料不完整！\n需有 question, optionA, optionB, optionC, answer`);
+                        }
+
+                        return {
+                            question: q,
+                            A: a,
+                            B: b,
+                            C: c,
+                            answer: ans.toString().trim().toUpperCase()
+                        };
+                    });
+
+                    // 隱藏上傳說明文字，顯示遊戲區
+                    document.getElementById('setupBox').style.display = 'none';
+                    document.getElementById('gameContainer').style.display = 'flex';
+                    
+                    startGame();
+
+                } catch (error) {
+                    console.error(error);
+                    alert(`⚠️ 匯入失敗！錯誤原因：\n${error.message}`);
+                    location.reload();
                 }
-
-                // 驗證並整理格式
-                questions = jsonRows.map(row => ({
-                    question: row.question || "未設定題目",
-                    A: row.optionA || "選項A",
-                    B: row.optionB || "選項B",
-                    C: row.optionC || "選項C",
-                    answer: (row.answer || "A").trim().toUpperCase()
-                }));
-
-                // 隱藏上傳區，顯示遊戲區
-                document.getElementById('setupBox').style.display = 'none';
-                document.getElementById('gameContainer').style.display = 'flex';
-                
-                startGame();
             };
             reader.readAsBinaryString(file);
         }
@@ -161,19 +275,19 @@
             currentQuestionIndex = 0;
             document.getElementById('score').textContent = score;
             
-            // 初始化蛇（置中）
+            // 將蛇初始化在目前畫布的正中央
             snake = [];
             for (let i = 0; i < snakeLength; i++) {
-                snake.push({ x: 300, y: 200 });
+                snake.push({ x: canvas.width / 2, y: canvas.height / 2 });
             }
 
             loadQuestion();
             
             if (gameInterval) clearInterval(gameInterval);
-            gameInterval = setInterval(gameLoop, 1000 / 60); // 60 FPS 順暢度
+            gameInterval = setInterval(gameLoop, 1000 / 60); 
         }
 
-        // 載入題目與隨機產生三個答案食物
+        // 載入題目
         function loadQuestion() {
             if (currentQuestionIndex >= questions.length) {
                 alert("🎉 恭喜你答完了所有題目！太厲害了！");
@@ -182,82 +296,71 @@
             }
 
             const q = questions[currentQuestionIndex];
-            document.getElementById('questionBox').textContent = `【第 ${currentQuestionIndex+1} 題】${q.question}`;
+            questionBox.textContent = `【第 ${currentQuestionIndex+1} 題】${q.question}`;
             document.getElementById('level').textContent = currentQuestionIndex + 1;
 
-            // 隨機在畫面上生成 A, B, C 三個選項的位置（避開牆壁）
             const options = ['A', 'B', 'C'];
             foods = options.map(opt => ({
                 type: opt,
                 text: q[opt],
-                x: Math.random() * (canvas.width - 100) + 50,
-                y: Math.random() * (canvas.height - 100) + 50,
-                radius: 18
+                x: Math.random() * (canvas.width - 120) + 60,
+                y: Math.random() * (canvas.height - 120) + 60,
+                radius: 20
             }));
         }
 
         // 遊戲主要循環
         function gameLoop() {
             if (isGameOver) return;
-
             updateSnake();
             checkCollisions();
             drawGame();
         }
 
-        // 更新蛇的位置（滑鼠追蹤演算法）
+        // 更新蛇的位置
         function updateSnake() {
             let head = { ...snake[0] };
-            
-            // 計算蛇頭到滑鼠之間的距離與角度
             let dx = mouseX - head.x;
             let dy = mouseY - head.y;
             let distance = Math.sqrt(dx * dx + dy * dy);
 
-            // 當滑鼠距離蛇頭大於 5 像素時才移動，避免原地抖動
             if (distance > 5) {
                 let angle = Math.atan2(dy, dx);
                 head.x += Math.cos(angle) * speed;
                 head.y += Math.sin(angle) * speed;
             }
 
-            // 新增蛇頭，移出蛇尾，達到移動效果
             snake.unshift(head);
             if (snake.length > snakeLength) {
                 snake.pop();
             }
         }
 
-        // 檢查碰撞（撞牆、吃東西）
+        // 檢查碰撞
         function checkCollisions() {
             let head = snake[0];
 
-            // 1. 撞牆檢測
             if (head.x < 0 || head.x > canvas.width || head.y < 0 || head.y > canvas.height) {
                 gameOver("💥 撞牆啦！遊戲結束！");
                 return;
             }
 
-            // 2. 檢測是否吃到選項食物
             for (let i = 0; i < foods.length; i++) {
                 let food = foods[i];
                 let dx = head.x - food.x;
                 let dy = head.y - food.y;
                 let dist = Math.sqrt(dx * dx + dy * dy);
 
-                // 蛇頭半徑約 10，食物半徑 food.radius
-                if (dist < 10 + food.radius) {
+                if (dist < 12 + food.radius) {
                     const currentAnswer = questions[currentQuestionIndex].answer;
                     
                     if (food.type === currentAnswer) {
-                        // 答對了
                         score += 10;
-                        snakeLength += 3; // 蛇變長
+                        snakeLength += 3; 
                         document.getElementById('score').textContent = score;
                         currentQuestionIndex++;
                         loadQuestion();
                     } else {
-                        // 答錯了
                         gameOver(`❌ 答錯囉！正確答案是 (${currentAnswer})。`);
                     }
                     break;
@@ -267,12 +370,10 @@
 
         // 繪製畫面
         function drawGame() {
-            // 清空畫布
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 繪製選項食物
+            // 繪製食物選項
             foods.forEach(food => {
-                // 畫食物圓圈背景
                 ctx.beginPath();
                 ctx.arc(food.x, food.y, food.radius, 0, Math.PI * 2);
                 ctx.fillStyle = food.type === 'A' ? '#e74c3c' : food.type === 'B' ? '#2ecc71' : '#3498db';
@@ -282,39 +383,36 @@
                 ctx.stroke();
                 ctx.closePath();
 
-                // 寫上選項英文字 (A, B, C) 與文字內容
+                // 畫 A, B, C 字母
                 ctx.fillStyle = "white";
-                ctx.font = "bold 14px Arial";
+                ctx.font = "bold 16px Arial";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
                 ctx.fillText(food.type, food.x, food.y - 2);
                 
-                // 在食物下方顯示選項簡短文字
-                ctx.font = "12px 'Microsoft JhengHei'";
+                // 畫選項文字內容（文字大小隨畫布寬度微調，大畫面大字）
+                const textFontSize = Math.max(12, Math.round(canvas.width / 50));
+                ctx.font = `${textFontSize}px 'Microsoft JhengHei'`;
                 ctx.fillStyle = "#ecf0f1";
-                ctx.fillText(food.text, food.x, food.y + food.radius + 12);
+                ctx.fillText(food.text, food.x, food.y + food.radius + 15);
             });
 
-            // 2. 繪製貪食蛇
+            // 繪製蛇
             snake.forEach((part, index) => {
                 ctx.beginPath();
-                // 蛇頭大一點，身體漸漸變小
-                let radius = index === 0 ? 10 : Math.max(6, 10 - index * 0.2);
+                let radius = index === 0 ? 12 : Math.max(7, 12 - index * 0.2);
                 ctx.arc(part.x, part.y, radius, 0, Math.PI * 2);
-                
-                // 蛇頭用亮綠色，身體用墨綠色交替
                 ctx.fillStyle = index === 0 ? "#00FF00" : (index % 2 === 0 ? "#27ae60" : "#2ecc71");
                 ctx.fill();
                 ctx.closePath();
             });
         }
 
-        // 遊戲結束
         function gameOver(msg) {
             isGameOver = true;
             clearInterval(gameInterval);
             alert(`${msg}\n最終得分: ${score}`);
-            location.reload(); // 重新整理網頁回到上傳介面
+            location.reload(); 
         }
     </script>
 </body>
