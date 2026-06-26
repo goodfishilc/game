@@ -79,6 +79,13 @@
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
         }
 
+        .btn-update {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            grid-column: 1 / -1;
+            font-size: 1em;
+            min-height: 60px;
+        }
+
         .footer {
             color: #666;
             font-size: 0.9em;
@@ -87,9 +94,8 @@
 
         .loading {
             color: #999;
-            font-size: 0.85em;
+            font-size: 0.9em;
             margin-top: 10px;
-            font-style: italic;
         }
     </style>
 </head>
@@ -123,30 +129,26 @@
             }
         ];
 
-        // 自動加載配置文件（加上時間戳記防止快取）
+        // 加載配置文件（加上時間戳記防止快取）
         async function loadGameConfig() {
             try {
-                // 使用封裝好的 cache buster，確保每次都能抓到最新的 json 檔案
+                // 加上時間戳記，確保每次點擊更新都能抓到最新資料
                 const response = await fetch(`games.json?t=${new Date().getTime()}`);
                 if (response.ok) {
                     const config = await response.json();
                     return config.games || gameConfig;
                 }
             } catch (error) {
-                console.log('未找到 games.json 或讀取失敗，使用預設配置');
+                console.log('未找到 games.json，使用預設配置');
             }
             return gameConfig;
         }
 
-        // 初始化與重新渲染遊戲按鈕
-        async function initializeGames(isAutoRefresh = false) {
+        // 初始化與渲染遊戲按鈕
+        async function initializeGames() {
             const gamesGrid = document.getElementById('gamesGrid');
             const loadingStatus = document.getElementById('loadingStatus');
             
-            if (isAutoRefresh) {
-                loadingStatus.textContent = '🔄 正在背景自動檢查更新...';
-            }
-
             try {
                 const games = await loadGameConfig();
                 
@@ -162,26 +164,26 @@
                     gamesGrid.appendChild(link);
                 });
                 
-                // 更新提示文字
-                const now = new Date();
-                const timeString = now.toLocaleTimeString();
-                loadingStatus.textContent = `⏱️ 最後更新時間：${timeString}（每 10 秒自動同步）`;
-
+                // 添加手動更新按鈕
+                const updateButton = document.createElement('button');
+                updateButton.className = 'game-button btn-update';
+                updateButton.textContent = '⚙️ 刷新遊戲列表';
+                updateButton.onclick = async () => {
+                    loadingStatus.textContent = '正在刷新列表...';
+                    // 重新執行載入與渲染，不跳轉、不重刷整個網頁，體驗更平滑
+                    await initializeGames();
+                };
+                gamesGrid.appendChild(updateButton);
+                
+                loadingStatus.textContent = '';
             } catch (error) {
                 console.error('加載遊戲配置失敗:', error);
-                loadingStatus.textContent = '❌ 自動同步失敗，請檢查網路連線';
+                loadingStatus.textContent = '加載失敗，請稍後重試';
             }
         }
 
-        // 頁面首次載入時初始化
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeGames(false);
-
-            // 設定定時器：每 10,000 毫秒（10 秒）自動在背景更新一次
-            setInterval(() => {
-                initializeGames(true);
-            }, 10,000); 
-        });
+        // 頁面加載時初始化
+        document.addEventListener('DOMContentLoaded', initializeGames);
     </script>
 </body>
 </html>
