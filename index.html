@@ -97,6 +97,16 @@
             font-size: 0.9em;
             margin-top: 10px;
         }
+        
+        /* 新增錯誤紅字樣式 */
+        .error-msg {
+            color: #ff4d4d !important;
+            font-weight: bold;
+            background: #fff0f0;
+            padding: 5px 10px;
+            border-radius: 5px;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -113,7 +123,6 @@
     </div>
 
     <script>
-        // 遊戲配置 - 預設的遊戲信息
         const gameConfig = [
             {
                 file: 'convenience_store.html',
@@ -129,60 +138,63 @@
             }
         ];
 
-        // 加載配置文件（加上時間戳記防止快取）
         async function loadGameConfig() {
+            const loadingStatus = document.getElementById('loadingStatus');
             try {
-                // 加上時間戳記，確保每次點擊更新都能抓到最新資料
                 const response = await fetch(`games.json?t=${new Date().getTime()}`);
-                if (response.ok) {
-                    const config = await response.json();
-                    return config.games || gameConfig;
+                
+                if (!response.ok) {
+                    throw new Error(`找不到 games.json 檔案 (錯誤碼: ${response.status})`);
                 }
+                
+                const config = await response.json();
+                
+                if (!config.games || !Array.isArray(config.games)) {
+                    throw new Error("games.json 格式錯誤，缺少 'games' 陣列");
+                }
+                
+                return config.games;
             } catch (error) {
-                console.log('未找到 games.json，使用預設配置');
+                console.error(error);
+                // 顯示具體的錯誤訊息給使用者看
+                loadingStatus.innerHTML = `<span class="error-msg">⚠️ 讀取失敗: ${error.message}，已啟用預設列表。</span>`;
+                return gameConfig;
             }
-            return gameConfig;
         }
 
-        // 初始化與渲染遊戲按鈕
         async function initializeGames() {
             const gamesGrid = document.getElementById('gamesGrid');
             const loadingStatus = document.getElementById('loadingStatus');
             
-            try {
-                const games = await loadGameConfig();
-                
-                // 清空網格
-                gamesGrid.innerHTML = '';
-                
-                // 添加遊戲按鈕
-                games.forEach(game => {
-                    const link = document.createElement('a');
-                    link.href = `https://goodfishilc.github.io/game/${game.file}`;
-                    link.className = `game-button ${game.className}`;
-                    link.textContent = `${game.emoji} ${game.label}`;
-                    gamesGrid.appendChild(link);
-                });
-                
-                // 添加手動更新按鈕
-                const updateButton = document.createElement('button');
-                updateButton.className = 'game-button btn-update';
-                updateButton.textContent = '⚙️ 刷新遊戲列表';
-                updateButton.onclick = async () => {
-                    loadingStatus.textContent = '正在刷新列表...';
-                    // 重新執行載入與渲染，不跳轉、不重刷整個網頁，體驗更平滑
-                    await initializeGames();
-                };
-                gamesGrid.appendChild(updateButton);
-                
-                loadingStatus.textContent = '';
-            } catch (error) {
-                console.error('加載遊戲配置失敗:', error);
-                loadingStatus.textContent = '加載失敗，請稍後重試';
+            // 先清空提示（除非上面 load 失敗有噴 error 才會被覆蓋）
+            loadingStatus.textContent = '載入中...';
+            
+            const games = await loadGameConfig();
+            
+            gamesGrid.innerHTML = '';
+            
+            games.forEach(game => {
+                const link = document.createElement('a');
+                link.href = `https://goodfishilc.github.io/game/${game.file}`;
+                link.className = `game-button ${game.className}`;
+                link.textContent = `${game.emoji} ${game.label}`;
+                gamesGrid.appendChild(link);
+            });
+            
+            const updateButton = document.createElement('button');
+            updateButton.className = 'game-button btn-update';
+            updateButton.textContent = '⚙️ 刷新遊戲列表';
+            updateButton.onclick = async () => {
+                await initializeGames();
+            };
+            gamesGrid.appendChild(updateButton);
+            
+            // 如果沒出錯，就把「載入中」清空
+            if (!loadingStatus.querySelector('.error-msg')) {
+                loadingStatus.textContent = '✅ 列表已是最新狀態';
             }
         }
 
-        // 頁面加載時初始化
         document.addEventListener('DOMContentLoaded', initializeGames);
     </script>
 </body>
