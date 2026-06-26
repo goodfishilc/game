@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>文字貪食蛇學習機</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        
+        /* 介面區塊 */
+        .setup-container {
+            background: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            width: 600px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        select, button {
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            font-weight: bold;
+        }
+        button:hover { background-color: #45a049; }
+
+        /* 遊戲資訊區 */
+        .info-panel {
+            width: 600px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #444;
+        }
+        .question-box {
+            background-color: #e1f5fe;
+            border-left: 5px solid #0288d1;
+            padding: 10px;
+            width: 600px;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+            font-size: 20px;
+            text-align: center;
+            border-radius: 4px;
+        }
+
+        /* 畫布 */
+        canvas {
+            background-color: #222;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🐍 文字貪食蛇學習機</h1>
+
+    <div class="setup-container">
+        <div>
+            <label for="lessonSelect">選擇課次：</label>
+            <select id="lessonSelect" onchange="changeLesson()">
+                </select>
+        </div>
+        <button onclick="importData()">＋ 匯入/修改自訂題目</button>
+    </div>
+
+    <div class="question-box" id="questionDisplay">載入中...</div>
+    <div class="info-panel">
+        <div id="scoreDisplay">得分: 0</div>
+        <div style="color: #ff5722;">提示：請操控蛇去吃正確的文字！</div>
+    </div>
+
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+<script>
+    // 預設的課次與題目庫 (JSON 格式，使用者可自行擴充)
+    let lessonData = {
+        "第一課：基礎英文": [
+            { question: "『蘋果』的英文是什麼？", answer: "APPLE", options: ["APPLE", "BANANA", "CAT"] },
+            { question: "『貓咪』的英文是什麼？", answer: "CAT", options: ["DOG", "CAT", "FOX"] }
+        ],
+        "第二課：進階單字": [
+            { question: "『大象』的英文是什麼？", answer: "ELEPHANT", options: ["ELEPHANT", "TIGER", "LION"] },
+            { question: "『香蕉』的英文是什麼？", answer: "BANANA", options: ["APPLE", "BANANA", "ORANGE"] }
+        ]
+    };
+
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // 遊戲設定
+    const gridSize = 20; // 每個格子的尺寸
+    let snake = [];
+    let direction = "RIGHT";
+    let nextDirection = "RIGHT";
+    let score = 0;
+    let gameInterval;
+    
+    // 題目邏輯變數
+    let currentLesson = "第一課：基礎英文";
+    let currentQuestionIndex = 0;
+    let activeWords = []; // 畫面上所有的文字物件 [{x, y, text, isCorrect}]
+
+    // 初始化介面
+    function initUI() {
+        const select = document.getElementById("lessonSelect");
+        select.innerHTML = "";
+        for (let lessonName in lessonData) {
+            let opt = document.createElement("option");
+            opt.value = lessonName;
+            opt.innerText = lessonName;
+            if(lessonName === currentLesson) opt.selected = true;
+            select.appendChild(opt);
+        }
+        loadQuestion();
+    }
+
+    // 切換課次
+    function changeLesson() {
+        currentLesson = document.getElementById("lessonSelect").value;
+        currentQuestionIndex = 0;
+        score = 0;
+        document.getElementById("scoreDisplay").innerText = "得分: " + score;
+        resetGame();
+    }
+
+    // 匯入自訂資料的視窗
+    function importData() {
+        let sampleText = JSON.stringify(lessonData, null, 2);
+        let userInput = prompt("請貼上您的 JSON 格式題目（格式參考下方預設）：", sampleText);
+        if (userInput) {
+            try {
+                let parsed = JSON.parse(userInput);
+                lessonData = parsed;
+                // 自動抓取新資料的第一個課次
+                currentLesson = Object.keys(lessonData)[0];
+                currentQuestionIndex = 0;
+                initUI();
+                resetGame();
+                alert("匯入成功！");
+            } catch (e) {
+                alert("格式錯誤，請確保輸入的是正確的 JSON 格式！");
+            }
+        }
+    }
+
+    // 載入當前題目與隨機放置文字
+    function loadQuestion() {
+        let questions = lessonData[currentLesson];
+        if (!questions || questions.length === 0) {
+            document.getElementById("questionDisplay").innerText = "本課無題目";
+            return;
+        }
+        
+        let q = questions[currentQuestionIndex];
+        document.getElementById("questionDisplay").innerText = `【題目】${q.question}`;
+
+        // 生成文字在畫布上的隨機位置
+        activeWords = [];
+        q.options.forEach(opt => {
+            let pos = getRandomPosition();
+            activeWords.push({
+                x: pos.x,
+                y: pos.y,
+                text: opt,
+                isCorrect: opt === q.answer
+            });
+        });
+    }
+
+    // 取得不與蛇重疊的隨機格子座標
+    function getRandomPosition() {
+        let x, y, overlap;
+        do {
+            overlap = false;
+            x = Math.floor(Math.random() * (canvas.width / gridSize)) * gridSize;
+            y = Math.floor(Math.random() * (canvas.height / gridSize)) * gridSize;
+            
+            // 檢查是否與蛇重疊
+            for (let cell of snake) {
+                if (cell.x === x && cell.y === y) overlap = true;
+            }
+            // 檢查是否與現有文字重疊
+            for (let word of activeWords) {
+                if (word.x === x && word.y === y) overlap = true;
+            }
+        } while (overlap);
+        return { x: x, y: y };
+    }
+
+    // 遊戲重置
+    function resetGame() {
+        clearInterval(gameInterval);
+        // 初始化蛇（長度3，置中）
+        snake = [
+            { x: 60, y: 200 },
+            { x: 40, y: 200 },
+            { x: 20, y: 200 }
+        ];
+        direction = "RIGHT";
+        nextDirection = "RIGHT";
+        loadQuestion();
+        gameInterval = setInterval(gameStep, 150); // 控制蛇移動速度 (150毫秒走一步)
+    }
+
+    // 每一影格的邏輯
+    function gameStep() {
+        direction = nextDirection;
+        
+        // 計算蛇頭新位置
+        let head = { x: snake[0].x, y: snake[0].y };
+        if (direction === "RIGHT") head.x += gridSize;
+        if (direction === "LEFT") head.x -= gridSize;
+        if (direction === "UP") head.y -= gridSize;
+        if (direction === "DOWN") head.y += gridSize;
+
+        // 碰撞偵測 1：撞牆
+        if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) {
+            gameOver("撞牆啦！遊戲結束。");
+            return;
+        }
+
+        // 碰撞偵測 2：撞到自己
+        for (let cell of snake) {
+            if (head.x === cell.x && head.y === cell.y) {
+                gameOver("吃到自己了！遊戲結束。");
+                return;
+            }
+        }
+
+        // 把新蛇頭加進去
+        snake.unshift(head);
+
+        // 碰撞偵測 3：吃到文字？
+        let ateSomething = false;
+        for (let i = 0; i < activeWords.length; i++) {
+            let word = activeWords[i];
+            // 這裡判斷蛇頭是否踩到文字的左上角格子 (可視需求做更精準判斷，目前以格子對齊為主)
+            if (head.x === word.x && head.y === word.y) {
+                ateSomething = true;
+                if (word.isCorrect) {
+                    score += 10;
+                    document.getElementById("scoreDisplay").innerText = "得分: " + score;
+                    
+                    // 下一題
+                    currentQuestionIndex = (currentQuestionIndex + 1) % lessonData[currentLesson].length;
+                    alert("答對了！ 加 10 分 🎉");
+                    loadQuestion();
+                } else {
+                    score = Math.max(0, score - 5);
+                    document.getElementById("scoreDisplay").innerText = "得分: " + score;
+                    alert("答錯了！那是錯誤答案，扣 5 分 ❌ （題目會重置位置）");
+                    loadQuestion(); // 答錯就重新洗牌位置
+                }
+                break;
+            }
+        }
+
+        if (!ateSomething) {
+            snake.pop(); // 沒吃到東西時，尾巴縮短，維持原本長度
+        }
+        
+        draw();
+    }
+
+    // 繪製畫面
+    function draw() {
+        // 清空畫布
+        ctx.fillStyle = "#222";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 畫文字 (目標)
+        ctx.font = "bold 16px Arial";
+        activeWords.forEach(word => {
+            ctx.fillStyle = "#ffeb3b"; // 文字黃色
+            // 稍微調整文字置中偏上的視覺位移
+            ctx.fillText(word.text, word.x + 2, word.y + 16); 
+        });
+
+        // 畫蛇
+        snake.forEach((cell, index) => {
+            ctx.fillStyle = (index === 0) ? "#4caf50" : "#81c784"; // 蛇頭深綠、蛇身淺綠
+            ctx.fillRect(cell.x, cell.y, gridSize - 1, gridSize - 1);
+        });
+    }
+
+    function gameOver(msg) {
+        clearInterval(gameInterval);
+        alert(msg + `\n最終得分: ${score}`);
+        resetGame();
+    }
+
+    // 監聽鍵盤
+    window.addEventListener("keydown", e => {
+        if (e.key === "ArrowUp" && direction !== "DOWN") nextDirection = "UP";
+        if (e.key === "ArrowDown" && direction !== "UP") nextDirection = "DOWN";
+        if (e.key === "ArrowLeft" && direction !== "RIGHT") nextDirection = "LEFT";
+        if (e.key === "ArrowRight" && direction !== "LEFT") nextDirection = "RIGHT";
+    });
+
+    // 啟動
+    initUI();
+    resetGame();
+</script>
+</body>
+</html>
