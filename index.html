@@ -92,82 +92,10 @@
             margin-top: 20px;
         }
 
-        /* 彈出視窗樣式 */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-        }
-
-        .modal-content {
-            background-color: #fefefe;
-            margin: 10% auto;
-            padding: 20px;
-            border: 1px solid #888;
-            border-radius: 10px;
-            width: 80%;
-            max-width: 400px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-        }
-
-        .modal-content h2 {
-            margin-bottom: 15px;
-            color: #333;
-        }
-
-        .modal-content input {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 1em;
-            box-sizing: border-box;
-        }
-
-        .modal-content input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 5px rgba(102, 126, 234, 0.5);
-        }
-
-        .modal-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-        }
-
-        .modal-buttons button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 1em;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .btn-confirm {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-confirm:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-cancel {
-            background: #ddd;
-            color: #333;
-        }
-
-        .btn-cancel:hover {
-            background: #ccc;
+        .loading {
+            color: #999;
+            font-size: 0.9em;
+            margin-top: 10px;
         }
     </style>
 </head>
@@ -175,97 +103,89 @@
     <div class="container">
         <h1>🎮 遊戲中心</h1>
         
-        <div class="games-grid">
-            <a href="https://goodfishilc.github.io/game/convenience_store.html" class="game-button btn-convenience-store">
-                🏪 便利商店
-            </a>
-            <a href="https://goodfishilc.github.io/game/game.html" class="game-button btn-game">
-                🎯 遊戲
-            </a>
-            <button class="game-button btn-update" onclick="openUpdateModal()">
-                ⚙️ 更新連結
-            </button>
+        <div class="games-grid" id="gamesGrid">
+            <!-- 動態生成的遊戲按鈕將插入到這裡 -->
         </div>
 
         <div class="footer">
             <p>✨ 選擇你喜歡的遊戲開始玩吧！</p>
-        </div>
-    </div>
-
-    <!-- 更新連結彈出視窗 -->
-    <div id="updateModal" class="modal">
-        <div class="modal-content">
-            <h2>🔗 更新倉庫檔案連結</h2>
-            <div>
-                <label for="fileName" style="display: block; margin-bottom: 5px; text-align: left; color: #333;">檔案名稱:</label>
-                <input type="text" id="fileName" placeholder="例如: convenience_store.html" />
-                <label for="gameLabel" style="display: block; margin-bottom: 5px; text-align: left; color: #333;">按鈕標籤:</label>
-                <input type="text" id="gameLabel" placeholder="例如: 便利商店" />
-                <label for="gameEmoji" style="display: block; margin-bottom: 5px; text-align: left; color: #333;">emoji:</label>
-                <input type="text" id="gameEmoji" placeholder="例如: 🏪" />
-            </div>
-            <div class="modal-buttons">
-                <button class="btn-cancel" onclick="closeUpdateModal()">取消</button>
-                <button class="btn-confirm" onclick="updateLink()">確認更新</button>
-            </div>
+            <div class="loading" id="loadingStatus">正在加載遊戲...</div>
         </div>
     </div>
 
     <script>
-        function openUpdateModal() {
-            document.getElementById("updateModal").style.display = "block";
-            document.getElementById("fileName").value = "";
-            document.getElementById("gameLabel").value = "";
-            document.getElementById("gameEmoji").value = "";
-            document.getElementById("fileName").focus();
-        }
-
-        function closeUpdateModal() {
-            document.getElementById("updateModal").style.display = "none";
-        }
-
-        function updateLink() {
-            const fileName = document.getElementById("fileName").value.trim();
-            const gameLabel = document.getElementById("gameLabel").value.trim();
-            const gameEmoji = document.getElementById("gameEmoji").value.trim();
-
-            if (!fileName || !gameLabel || !gameEmoji) {
-                alert("請填寫所有欄位！");
-                return;
+        // 遊戲配置 - 在這裡添加你的遊戲信息
+        const gameConfig = [
+            {
+                file: 'convenience_store.html',
+                label: '便利商店',
+                emoji: '🏪',
+                className: 'btn-convenience-store'
+            },
+            {
+                file: 'game.html',
+                label: '遊戲',
+                emoji: '🎯',
+                className: 'btn-game'
             }
+            // 新遊戲會自動添加到這裡
+        ];
 
-            // 生成新的連結
-            const newLink = `https://goodfishilc.github.io/game/${fileName}`;
-            const newButton = `<a href="${newLink}" class="game-button btn-game">
-                ${gameEmoji} ${gameLabel}
-            </a>`;
-
-            // 在遊戲網格中添加新按鈕
-            const gamesGrid = document.querySelector(".games-grid");
-            const tempDiv = document.createElement("div");
-            tempDiv.innerHTML = newButton;
-            gamesGrid.insertBefore(tempDiv.firstElementChild, gamesGrid.querySelector(".btn-update"));
-
-            // 清空輸入框並關閉彈出視窗
-            closeUpdateModal();
-            alert("✨ 連結已成功添加！");
+        // 自動加載配置文件
+        async function loadGameConfig() {
+            try {
+                const response = await fetch('games.json');
+                if (response.ok) {
+                    const config = await response.json();
+                    return config.games || gameConfig;
+                }
+            } catch (error) {
+                console.log('未找到 games.json，使用默認配置');
+            }
+            return gameConfig;
         }
 
-        // 點擊彈出視窗外部時關閉
-        window.onclick = function(event) {
-            const modal = document.getElementById("updateModal");
-            if (event.target == modal) {
-                modal.style.display = "none";
+        // 初始化遊戲按鈕
+        async function initializeGames() {
+            const gamesGrid = document.getElementById('gamesGrid');
+            const loadingStatus = document.getElementById('loadingStatus');
+            
+            try {
+                const games = await loadGameConfig();
+                
+                // 清空網格
+                gamesGrid.innerHTML = '';
+                
+                // 添加遊戲按鈕
+                games.forEach(game => {
+                    const link = document.createElement('a');
+                    link.href = `https://goodfishilc.github.io/game/${game.file}`;
+                    link.className = `game-button ${game.className}`;
+                    link.textContent = `${game.emoji} ${game.label}`;
+                    gamesGrid.appendChild(link);
+                });
+                
+                // 添加更新按鈕
+                const updateButton = document.createElement('button');
+                updateButton.className = 'game-button btn-update';
+                updateButton.textContent = '⚙️ 刷新遊戲列表';
+                updateButton.onclick = () => {
+                    loadingStatus.textContent = '正在刷新...';
+                    setTimeout(() => {
+                        location.reload();
+                    }, 500);
+                };
+                gamesGrid.appendChild(updateButton);
+                
+                loadingStatus.textContent = '';
+            } catch (error) {
+                console.error('加載遊戲配置失敗:', error);
+                loadingStatus.textContent = '加載失敗，請稍後重試';
             }
         }
 
-        // 按 Enter 鍵確認
-        document.addEventListener("keypress", function(event) {
-            const modal = document.getElementById("updateModal");
-            if (modal.style.display === "block" && event.key === "Enter") {
-                updateLink();
-            }
-        });
+        // 頁面加載時初始化
+        document.addEventListener('DOMContentLoaded', initializeGames);
     </script>
 </body>
 </html>
