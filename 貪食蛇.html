@@ -89,7 +89,7 @@
 
         #gameContainer {
             position: relative;
-            display: none; /* 匯入成功後才顯示 */
+            display: flex; /* 預設題庫改為一開始就顯示 */
             flex-direction: column;
             align-items: center;
             width: 100%;
@@ -156,7 +156,7 @@
             </div>
             <hr style="width: 100%; border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 5px 0;">
             <div>
-                <span>第一步：請匯入題庫檔案 (`.xlsx`)：</span>
+                <span>想更換題目？請在此匯入題庫 (`.xlsx`)：</span>
                 <input type="file" id="excelFile" class="file-input" accept=".xlsx, .xls" />
             </div>
         </div>
@@ -201,7 +201,24 @@
         let snakeLength = 5;
         let speed = 5; 
         let mouseX = 600, mouseY = 400; 
-        let questions = [];
+        
+        // 內建預設題庫（直接讀取自您提供的圖片內容）
+        let questions = [
+            { question: "文「 」", A: "載", B: "字", C: "讓", answer: "B" },
+            { question: "輕「 」", A: "舟", B: "忌", C: "訣", answer: "A" },
+            { question: "「 」水", A: "練", B: "習", C: "灑", answer: "C" },
+            { question: "「 」人", A: "載", B: "似", C: "灑", answer: "A" },
+            { question: "「 」開", A: "愁", B: "訣", C: "讓", answer: "C" },
+            { question: "「 」眉苦臉", A: "灑", B: "練", C: "愁", answer: "C" },
+            { question: "「 」氣", A: "嘆", B: "愁", C: "忌", answer: "A" },
+            { question: "「 」諱", A: "忌", B: "載", C: "練", answer: "A" },
+            { question: "忌「 」", A: "嘆", B: "妒", C: "嘆", answer: "B" },
+            { question: "「 」竅", A: "妒", B: "讓", C: "訣", answer: "C" },
+            { question: "相「 」", A: "似", B: "嘆", C: "妒", answer: "A" },
+            { question: "「 」習", A: "習", B: "練", C: "字", answer: "B" },
+            { question: "學「 」", A: "似", B: "習", C: "載", answer: "B" }
+        ];
+        
         let currentQuestionIndex = 0;
         let score = 0;
         let gameInterval;
@@ -209,28 +226,17 @@
         let isGameOver = false;
         let noticeTimeout;
 
-        // --- 範本匯出功能 ---
+        // 網頁載入後，直接以內建題庫自動開始遊戲
+        window.onload = function() {
+            startGame();
+        };
+
+        // --- 範本匯出功能（更新為此 13 題格式，方便老師下載修改） ---
         function exportTemplate() {
-            // 定義正確的標準欄位名稱與一列示範內容
-            const templateData = [
-                {
-                    "question": "範例：台灣最高峰是哪座山？",
-                    "optionA": "玉山",
-                    "optionB": "雪山",
-                    "optionC": "阿里山",
-                    "answer": "A"
-                }
-            ];
-
-            // 建立工作表 (Worksheet)
-            const worksheet = XLSX.utils.json_to_sheet(templateData);
-            
-            // 建立工作簿 (Workbook)
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "題庫設定");
-
-            // 下載 Excel 檔案
-            XLSX.writeFile(workbook, "貪食蛇遊戲_題庫範本.xlsx");
+            const worksheet = XLSX.utils.json_to_sheet(questions);
+            const workbook = XLSX.book_new();
+            XLSX.book_append_sheet(workbook, worksheet, "國語題庫");
+            XLSX.writeFile(workbook, "問答貪食蛇_國語題庫範本.xlsx");
         }
 
         fontSizeSlider.addEventListener("input", (e) => {
@@ -285,6 +291,7 @@
                         return;
                     }
 
+                    // 解析新上傳的 Excel 檔案覆蓋舊題目
                     questions = jsonRows.map((row, index) => {
                         const cleanRow = {};
                         Object.keys(row).forEach(key => {
@@ -309,9 +316,6 @@
                             answer: ans.toString().trim().toUpperCase()
                         };
                     });
-
-                    document.getElementById('setupBox').style.display = 'none';
-                    document.getElementById('gameContainer').style.display = 'flex';
                     
                     startGame();
 
