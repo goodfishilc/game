@@ -42,6 +42,13 @@
             gap: 12px;
         }
 
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
         .btn-export {
             background: #2ecc71;
             color: white;
@@ -57,6 +64,23 @@
 
         .btn-export:hover {
             background: #27ae60;
+        }
+
+        .btn-reset {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 1em;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .btn-reset:hover {
+            background: #c0392b;
         }
 
         .setting-group {
@@ -110,6 +134,15 @@
             transition: font-size 0.1s ease;
         }
 
+        /* 顯示版本冊課的新標籤 */
+        #versionTag {
+            font-size: 24px;
+            display: block;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+            font-weight: normal;
+        }
+
         .canvas-wrapper {
             background: #111;
             border: 4px solid #3498db;
@@ -151,12 +184,13 @@
     
     <div class="control-panel">
         <div id="setupBox" class="upload-section">
-            <div>
-                <button class="btn-export" onclick="exportTemplate()">📥 下載題庫 Excel 範本</button>
+            <div class="btn-group">
+                <button class="btn-export" onclick="exportTemplate()">📥 下載題庫 Excel 範本 (含版本資訊)</button>
+                <button class="btn-reset" onclick="resetToDefault()">🔄 還原預設題庫</button>
             </div>
             <hr style="width: 100%; border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 5px 0;">
             <div>
-                <span>想更換題目？請在此匯入題庫 (`.xlsx`)：</span>
+                <span>匯入新題庫以自動儲存更新 (`.xlsx`)：</span>
                 <input type="file" id="excelFile" class="file-input" accept=".xlsx, .xls" />
             </div>
         </div>
@@ -176,7 +210,7 @@
     </div>
 
     <div id="gameContainer">
-        <div id="questionBox">載入題目中...</div>
+        <div id="questionBox"><span id="versionTag"></span><span id="qText">載入題目中...</span></div>
         <div class="canvas-wrapper">
             <canvas id="gameCanvas" width="1200" height="800"></canvas>
         </div>
@@ -202,22 +236,25 @@
         let speed = 5; 
         let mouseX = 600, mouseY = 400; 
         
-        // 內建預設題庫
-        let questions = [
-            { question: "文「 」", A: "載", B: "字", C: "讓", answer: "B" },
-            { question: "輕「 」", A: "舟", B: "忌", C: "訣", answer: "A" },
-            { question: "「 」水", A: "練", B: "習", C: "灑", answer: "C" },
-            { question: "「 」人", A: "載", B: "似", C: "灑", answer: "A" },
-            { question: "「 」開", A: "愁", B: "訣", C: "讓", answer: "C" },
-            { question: "「 」眉苦臉", A: "灑", B: "練", C: "愁", answer: "C" },
-            { question: "「 」氣", A: "嘆", B: "愁", C: "忌", answer: "A" },
-            { question: "「 」諱", A: "忌", B: "載", C: "練", answer: "A" },
-            { question: "忌「 」", A: "嘆", B: "妒", C: "訣", answer: "B" },
-            { question: "「 」竅", A: "妒", B: "讓", C: "訣", answer: "C" },
-            { question: "相「 」", A: "似", B: "嘆", C: "妒", answer: "A" },
-            { question: "「 」習", A: "習", B: "練", C: "字", answer: "B" },
-            { question: "學「 」", A: "似", B: "習", C: "載", answer: "B" }
+        // 1. 調整預設題庫：第一欄加入 version，欄位對齊「康軒-5-1」格式
+        const defaultQuestions = [
+            { version: "康軒-5-1", question: "文「 」", A: "載", B: "字", C: "讓", answer: "B" },
+            { version: "康軒-5-1", question: "輕「 」", A: "舟", B: "忌", C: "訣", answer: "A" },
+            { version: "康軒-5-1", question: "「 」水", A: "練", B: "習", C: "灑", answer: "C" },
+            { version: "康軒-5-1", question: "「 」人", A: "載", B: "似", C: "灑", answer: "A" },
+            { version: "康軒-5-1", question: "「 」開", A: "愁", B: "訣", C: "讓", answer: "C" },
+            { version: "康軒-5-1", question: "「 」眉苦臉", A: "灑", B: "練", C: "愁", answer: "C" },
+            { version: "康軒-5-1", question: "「 」氣", A: "嘆", B: "愁", C: "忌", answer: "A" },
+            { version: "康軒-5-1", question: "「 」諱", A: "忌", B: "載", C: "練", answer: "A" },
+            { version: "康軒-5-1", question: "忌「 」", A: "嘆", B: "妒", C: "訣", answer: "B" },
+            { version: "康軒-5-1", question: "「 」竅", A: "妒", B: "讓", C: "訣", answer: "C" },
+            { version: "康軒-5-1", question: "相「 」", A: "似", B: "嘆", C: "妒", answer: "A" },
+            { version: "康軒-5-1", question: "「 」習", A: "習", B: "練", C: "字", answer: "B" },
+            { version: "康軒-5-1", question: "學「 」", A: "似", B: "習", C: "載", answer: "B" }
         ];
+
+        // 實作自動讀取與儲存機制：優先讀取記憶庫，若沒有才使用預設題庫
+        let questions = JSON.parse(localStorage.getItem("snake_questions")) || defaultQuestions;
         
         let currentQuestionIndex = 0;
         let score = 0;
@@ -230,11 +267,21 @@
             startGame();
         };
 
+        // 匯出時會將 version 排在第一欄
         function exportTemplate() {
             const worksheet = XLSX.utils.json_to_sheet(questions);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "國語題庫");
-            XLSX.writeFile(workbook, "問答貪食蛇_國語題庫範本.xlsx");
+            XLSX.writeFile(workbook, "問答貪食蛇_國語題庫(含版本).xlsx");
+        }
+
+        // 提供手動重置回原廠預設的按鈕功能
+        function resetToDefault() {
+            if (confirm("⚠️ 確定要刪除所有後來匯入的題目，恢復成最初的內建預設題庫嗎？")) {
+                localStorage.removeItem("snake_questions");
+                questions = defaultQuestions;
+                startGame();
+            }
         }
 
         fontSizeSlider.addEventListener("input", (e) => {
@@ -246,12 +293,10 @@
         canvasWidthSlider.addEventListener("input", (e) => {
             const width = parseInt(e.target.value);
             const height = Math.round(width * 2 / 3); 
-            
             document.getElementById("canvasWidthVal").textContent = width + "px";
             
             const oldWidth = canvas.width;
             const oldHeight = canvas.height;
-
             canvas.width = width;
             canvas.height = height;
 
@@ -289,23 +334,26 @@
                         return;
                     }
 
-                    questions = jsonRows.map((row, index) => {
+                    const importedQuestions = jsonRows.map((row, index) => {
                         const cleanRow = {};
                         Object.keys(row).forEach(key => {
                             cleanRow[key.toString().toLowerCase().trim()] = row[key];
                         });
 
-                        const q = cleanRow['question'];
+                        // 新增驗證 version 欄位 (可支援寫成 version 或「版本」)
+                        const v = cleanRow['version'] || cleanRow['版本'] || "未分類";
+                        const q = cleanRow['question'] || cleanRow['題目'];
                         const a = cleanRow['optiona'] || cleanRow['a'];
                         const b = cleanRow['optionb'] || cleanRow['b'];
                         const c = cleanRow['optionc'] || cleanRow['c'];
-                        const ans = cleanRow['answer'];
+                        const ans = cleanRow['answer'] || cleanRow['答案'];
 
                         if (!q || !a || !b || !c || !ans) {
-                            throw new Error(`第 ${index + 2} 列資料不完整！\n需有 question, optionA, optionB, optionC, answer`);
+                            throw new Error(`第 ${index + 2} 列資料不完整！\n需有 version, question, optionA, optionB, optionC, answer`);
                         }
 
                         return {
+                            version: v.toString().trim(),
                             question: q,
                             A: a,
                             B: b,
@@ -314,13 +362,19 @@
                         };
                     });
                     
+                    // 【自動寫入儲存機制】直接寫入 localStorage 內，往後開啟網頁都不會遺失
+                    questions = importedQuestions;
+                    localStorage.setItem("snake_questions", JSON.stringify(questions));
+                    
+                    alert(`📥 成功導入並永久儲存了 ${questions.length} 題新題目！`);
                     startGame();
 
                 } catch (error) {
                     console.error(error);
                     alert(`⚠️ 匯入失敗！錯誤原因：\n${error.message}`);
-                    location.reload();
                 }
+                // 清空檔案選擇器，以便重複匯入同檔名檔案
+                e.target.value = "";
             };
             reader.readAsBinaryString(file);
         }
@@ -344,18 +398,20 @@
             gameInterval = setInterval(gameLoop, 1000 / 60); 
         }
 
-        // 載入題目（防重疊分配）
         function loadQuestion() {
             if (currentQuestionIndex >= questions.length) {
                 isGameOver = true;
                 clearInterval(gameInterval);
                 alert(`🎉 恭喜你順利答完全部題目！\n最終得分: ${score}`);
-                location.reload();
+                startGame(); // 結束後直接開啟下一輪
                 return;
             }
 
             const q = questions[currentQuestionIndex];
-            questionBox.textContent = `【第 ${currentQuestionIndex+1} 題】${q.question}`;
+            
+            // 渲染版本與題目內容
+            document.getElementById('versionTag').textContent = `📍 範圍：${q.version}`;
+            document.getElementById('qText').textContent = `【第 ${currentQuestionIndex+1} 題】${q.question}`;
             document.getElementById('level').textContent = currentQuestionIndex + 1;
 
             const options = ['A', 'B', 'C'];
@@ -417,7 +473,6 @@
                 head.y += Math.sin(angle) * speed;
             }
 
-            // 【無限穿牆設定】超出畫布邊界時，自動從對面冒出來
             if (head.x < 0) head.x = canvas.width;
             if (head.x > canvas.width) head.x = 0;
             if (head.y < 0) head.y = canvas.height;
@@ -431,8 +486,6 @@
 
         function checkCollisions() {
             let head = snake[0];
-
-            // 已刪除舊有的牆壁碰撞（GameOver）判斷
 
             for (let i = 0; i < foods.length; i++) {
                 let food = foods[i];
@@ -478,7 +531,6 @@
                 ctx.fillText(food.text, food.x, food.y);
             });
 
-            // 繪製蛇
             snake.forEach((part, index) => {
                 ctx.beginPath();
                 let radius = index === 0 ? 14 : Math.max(8, 14 - index * 0.2);
