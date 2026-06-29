@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全字體可調式問答貪食蛇 - Firebase 雲端追加範圍版</title>
+    <title>全字體可調式問答貪食蛇 - Firebase 雲端追加範圍密碼保護版</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
@@ -119,7 +119,7 @@
         <div id="setupBox" class="upload-section">
             <div class="btn-group">
                 <button class="btn-export" id="btnExport">📥 下載資料庫現有所有題庫</button>
-                <button class="btn-reset" id="btnReset">⚠️ 清空雲端並還原預設值</button>
+                <button class="btn-reset" id="btnReset">🔒 清空雲端並還原預設值 (需密碼)</button>
             </div>
             <hr style="width: 100%; border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 5px 0;">
             <div>
@@ -208,8 +208,8 @@
             { version: "康軒-5-1", question: "「 」人", A: "載", B: "似", C: "灑", answer: "A" }
         ];
 
-        let allDBQuestions = [];     // 儲存資料庫撈出來的完整題目
-        let filteredQuestions = [];  // 儲存被篩選出來要玩遊戲的題目
+        let allDBQuestions = [];     
+        let filteredQuestions = [];  
         let currentQuestionIndex = 0;
         let score = 0;
         let gameInterval;
@@ -224,7 +224,6 @@
                 allDBQuestions = data;
                 dbStatus.textContent = `🟢 雲端資料庫連線成功！共儲存 ${allDBQuestions.length} 題。`;
             } else if (data && typeof data === 'object') {
-                // 防呆：轉為陣列
                 allDBQuestions = Object.values(data);
                 dbStatus.textContent = `🟢 雲端資料庫連線成功！共儲存 ${allDBQuestions.length} 題。`;
             } else {
@@ -232,22 +231,17 @@
                 set(dbRef, defaultQuestions);
                 dbStatus.textContent = "🟡 雲端查無資料，已自動建立預設題目。";
             }
-            updateLessonDropdowns(); // 更新下拉選單
-            applyFilterAndStart();   // 套用選單篩選並啟動遊戲
+            updateLessonDropdowns(); 
+            applyFilterAndStart();   
         }, (error) => {
             dbStatus.textContent = "🔴 資料庫連線失敗，請檢查安全規則設定。";
             console.error(error);
         });
 
-        // 智慧型更新下拉選單清單
         function updateLessonDropdowns() {
-            // 擷取所有不重複的版本課次
             const versions = [...new Set(allDBQuestions.map(q => q.version))];
-            
-            // 排序演算法：盡量讓 5-10 排在 5-2 後面
             versions.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
-            // 記錄當前選擇，避免被沖掉
             const prevStart = startLessonSelect.value;
             const prevEnd = endLessonSelect.value;
 
@@ -264,13 +258,11 @@
                 endLessonSelect.appendChild(opt2);
             });
 
-            // 回填原本選取的項目
             if(versions.includes(prevStart)) startLessonSelect.value = prevStart;
             if(versions.includes(prevEnd)) endLessonSelect.value = prevEnd;
-            else endLessonSelect.value = versions[versions.length - 1]; // 預設拉到最後一課
+            else endLessonSelect.value = versions[versions.length - 1]; 
         }
 
-        // 依據下拉選單範圍篩選並打亂題目
         function applyFilterAndStart() {
             const startVal = startLessonSelect.value;
             const endVal = endLessonSelect.value;
@@ -281,22 +273,17 @@
             const startIndex = versions.indexOf(startVal);
             const endIndex = versions.indexOf(endVal);
 
-            // 取得範圍內合法的版本字串列表
             const allowedVersions = startIndex <= endIndex 
                 ? versions.slice(startIndex, endIndex + 1)
-                : versions.slice(endIndex, startIndex + 1); // 避免老師前後選反
+                : versions.slice(endIndex, startIndex + 1); 
 
-            // 篩選題目
             filteredQuestions = allDBQuestions.filter(q => allowedVersions.includes(q.version));
-            
-            // 隨機打亂題目（洗牌演算法）
             filteredQuestions.sort(() => Math.random() - 0.5);
 
             document.getElementById('totalLevels').textContent = filteredQuestions.length;
             startGame();
         }
 
-        // 綁定按鈕事件
         document.getElementById("btnExport").addEventListener("click", exportTemplate);
         document.getElementById("btnReset").addEventListener("click", resetToDefaultInDB);
         document.getElementById('excelFile').addEventListener('change', handleExcelUpload);
@@ -310,16 +297,30 @@
             XLSX.writeFile(workbook, "雲端資料庫_完整題庫備份.xlsx");
         }
 
+        // 🔒 密碼保護的核心重置功能
         function resetToDefaultInDB() {
-            if (confirm("⚠️ 注意！這將會完全覆蓋並清空現有雲端資料庫的所有內容，恢復成預設的 4 題。確定嗎？")) {
+            // 第一關：要求輸入管理密碼
+            const password = prompt("🔒 此操作將刪除雲端所有題目！\n請輸入管理員密碼以繼續：");
+            
+            if (password === null) return; // 使用者按取消
+
+            if (password !== "9512626") {
+                alert("❌ 密碼錯誤！無法重置資料庫。");
+                return;
+            }
+
+            // 第二關：再次確認
+            if (confirm("⚠️ 密碼正確。確定要完全覆蓋並清空現有雲端資料庫的所有內容，恢復成預設的 4 題嗎？")) {
                 dbStatus.textContent = "🔄 正在重置雲端...";
                 set(dbRef, defaultQuestions).then(() => {
-                    alert("✅ 雲端資料庫已徹底還原！");
+                    alert("✅ 雲端資料庫已徹底還原為預設題庫！");
+                }).catch(err => {
+                    alert("❌ 雲端更新失敗，請檢查網路或 Firebase 安全規則。");
+                    console.error(err);
                 });
             }
         }
 
-        //核心功能：【追加不覆蓋匯入】
         function handleExcelUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -362,7 +363,6 @@
                         };
                     });
                     
-                    // 【不覆蓋核心邏輯】：將原本雲端的陣列（allDBQuestions）加上新上傳的陣列，再同步回去
                     const finalCombinedQuestions = allDBQuestions.concat(importedQuestions);
 
                     dbStatus.textContent = "📤 正在將新題目追加並同步至雲端...";
@@ -382,7 +382,7 @@
         }
 
         // ==========================================
-        // 🐍 貪食蛇遊戲核心引擎核心邏輯
+        // 🐍 貪食蛇遊戲核心引擎
         // ==========================================
         fontSizeSlider.addEventListener("input", (e) => {
             currentFontSize = parseInt(e.target.value); 
@@ -443,7 +443,7 @@
                 isGameOver = true;
                 clearInterval(gameInterval);
                 alert(`🎉 恭喜你順利答完本範例內所有的 ${filteredQuestions.length} 道關卡！\n最終得分: ${score}`);
-                applyFilterAndStart(); // 自動洗牌重新一輪
+                applyFilterAndStart(); 
                 return;
             }
 
