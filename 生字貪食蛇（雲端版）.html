@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全字體可調式問答貪食蛇 - Firebase 雲端資料庫版</title>
+    <title>全字體可調式問答貪食蛇 - Firebase 雲端追加範圍版</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
@@ -54,11 +54,33 @@
             transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
         .btn-reset:hover { background: #c0392b; }
+        
+        /* 篩選與設定區 */
         .setting-group {
             display: flex; justify-content: space-around; align-items: center;
             flex-wrap: wrap; margin-top: 15px; background: rgba(0,0,0,0.2);
             padding: 10px; border-radius: 8px; gap: 10px;
         }
+        .filter-group {
+            background: #16a085;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+        .filter-group select {
+            padding: 6px 12px;
+            font-size: 1em;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+        }
+        
         .setting-item { display: flex; align-items: center; gap: 8px; }
         .setting-item label { font-weight: bold; font-size: 0.95em; }
         .file-input { color: #ecf0f1; margin-left: 10px; }
@@ -91,20 +113,28 @@
 </head>
 <body>
 
-    <h1>🐍 全字體可調式問答貪食蛇 (雲端資料庫版)</h1>
+    <h1>🐍 全字體可調式問答貪食蛇 (雲端範圍追加版)</h1>
     
     <div class="control-panel">
         <div id="setupBox" class="upload-section">
             <div class="btn-group">
-                <button class="btn-export" id="btnExport">📥 下載資料庫現有題庫 Excel</button>
-                <button class="btn-reset" id="btnReset">🔄 重置雲端資料庫為預設值</button>
+                <button class="btn-export" id="btnExport">📥 下載資料庫現有所有題庫</button>
+                <button class="btn-reset" id="btnReset">⚠️ 清空雲端並還原預設值</button>
             </div>
             <hr style="width: 100%; border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 5px 0;">
             <div>
-                <span>覆蓋雲端資料庫題目 (`.xlsx`)：</span>
+                <span>➕ 追加新題目至雲端資料庫 (`.xlsx`)：</span>
                 <input type="file" id="excelFile" class="file-input" accept=".xlsx, .xls" />
                 <div id="dbStatus">📡 連線雲端資料庫中...</div>
             </div>
+        </div>
+
+        <div class="filter-group">
+            <label>📖 選擇遊戲範圍：</label>
+            <select id="startLessonSelect"><option value="">載入中...</option></select>
+            <span>至</span>
+            <select id="endLessonSelect"><option value="">載入中...</option></select>
+            <button class="btn-export" style="padding: 4px 12px; font-size:0.9em;" id="btnApplyFilter">🎯 確認範圍重開遊戲</button>
         </div>
         
         <div class="setting-group">
@@ -129,7 +159,7 @@
         <div id="wrongNotice"></div>
         <div class="score-board">
             <div>得分: <span id="score">0</span></div>
-            <div>目前關卡: <span id="level">1</span></div>
+            <div>目前關卡: <span id="level">1</span> / <span id="totalLevels">0</span></div>
         </div>
     </div>
 
@@ -161,6 +191,9 @@
         const questionBox = document.getElementById("questionBox");
         const wrongNotice = document.getElementById("wrongNotice");
         const dbStatus = document.getElementById("dbStatus");
+        
+        const startLessonSelect = document.getElementById("startLessonSelect");
+        const endLessonSelect = document.getElementById("endLessonSelect");
 
         let currentFontSize = 66; 
         let snake = [];
@@ -175,7 +208,8 @@
             { version: "康軒-5-1", question: "「 」人", A: "載", B: "似", C: "灑", answer: "A" }
         ];
 
-        let questions = []; 
+        let allDBQuestions = [];     // 儲存資料庫撈出來的完整題目
+        let filteredQuestions = [];  // 儲存被篩選出來要玩遊戲的題目
         let currentQuestionIndex = 0;
         let score = 0;
         let gameInterval;
@@ -186,42 +220,106 @@
         // 即時監聽雲端資料庫
         onValue(dbRef, (snapshot) => {
             const data = snapshot.val();
-            if (data) {
-                questions = data;
-                dbStatus.textContent = `🟢 雲端資料庫連線成功！共有 ${questions.length} 題。`;
+            if (data && Array.isArray(data)) {
+                allDBQuestions = data;
+                dbStatus.textContent = `🟢 雲端資料庫連線成功！共儲存 ${allDBQuestions.length} 題。`;
+            } else if (data && typeof data === 'object') {
+                // 防呆：轉為陣列
+                allDBQuestions = Object.values(data);
+                dbStatus.textContent = `🟢 雲端資料庫連線成功！共儲存 ${allDBQuestions.length} 題。`;
             } else {
-                questions = defaultQuestions;
+                allDBQuestions = defaultQuestions;
                 set(dbRef, defaultQuestions);
                 dbStatus.textContent = "🟡 雲端查無資料，已自動建立預設題目。";
             }
-            startGame();
+            updateLessonDropdowns(); // 更新下拉選單
+            applyFilterAndStart();   // 套用選單篩選並啟動遊戲
         }, (error) => {
             dbStatus.textContent = "🔴 資料庫連線失敗，請檢查安全規則設定。";
             console.error(error);
         });
 
-        // 綁定按鈕與上傳事件
+        // 智慧型更新下拉選單清單
+        function updateLessonDropdowns() {
+            // 擷取所有不重複的版本課次
+            const versions = [...new Set(allDBQuestions.map(q => q.version))];
+            
+            // 排序演算法：盡量讓 5-10 排在 5-2 後面
+            versions.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+            // 記錄當前選擇，避免被沖掉
+            const prevStart = startLessonSelect.value;
+            const prevEnd = endLessonSelect.value;
+
+            startLessonSelect.innerHTML = "";
+            endLessonSelect.innerHTML = "";
+
+            versions.forEach(v => {
+                const opt1 = document.createElement("option");
+                opt1.value = v; opt1.textContent = v;
+                startLessonSelect.appendChild(opt1);
+
+                const opt2 = document.createElement("option");
+                opt2.value = v; opt2.textContent = v;
+                endLessonSelect.appendChild(opt2);
+            });
+
+            // 回填原本選取的項目
+            if(versions.includes(prevStart)) startLessonSelect.value = prevStart;
+            if(versions.includes(prevEnd)) endLessonSelect.value = prevEnd;
+            else endLessonSelect.value = versions[versions.length - 1]; // 預設拉到最後一課
+        }
+
+        // 依據下拉選單範圍篩選並打亂題目
+        function applyFilterAndStart() {
+            const startVal = startLessonSelect.value;
+            const endVal = endLessonSelect.value;
+
+            const versions = [...new Set(allDBQuestions.map(q => q.version))];
+            versions.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+            const startIndex = versions.indexOf(startVal);
+            const endIndex = versions.indexOf(endVal);
+
+            // 取得範圍內合法的版本字串列表
+            const allowedVersions = startIndex <= endIndex 
+                ? versions.slice(startIndex, endIndex + 1)
+                : versions.slice(endIndex, startIndex + 1); // 避免老師前後選反
+
+            // 篩選題目
+            filteredQuestions = allDBQuestions.filter(q => allowedVersions.includes(q.version));
+            
+            // 隨機打亂題目（洗牌演算法）
+            filteredQuestions.sort(() => Math.random() - 0.5);
+
+            document.getElementById('totalLevels').textContent = filteredQuestions.length;
+            startGame();
+        }
+
+        // 綁定按鈕事件
         document.getElementById("btnExport").addEventListener("click", exportTemplate);
         document.getElementById("btnReset").addEventListener("click", resetToDefaultInDB);
         document.getElementById('excelFile').addEventListener('change', handleExcelUpload);
+        document.getElementById('btnApplyFilter').addEventListener('click', applyFilterAndStart);
 
         function exportTemplate() {
-            if (questions.length === 0) return;
-            const worksheet = XLSX.utils.json_to_sheet(questions);
+            if (allDBQuestions.length === 0) return;
+            const worksheet = XLSX.utils.json_to_sheet(allDBQuestions);
             const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "國語題庫");
-            XLSX.writeFile(workbook, "雲端資料庫_題庫匯出.xlsx");
+            XLSX.utils.book_append_sheet(workbook, worksheet, "雲端所有題庫");
+            XLSX.writeFile(workbook, "雲端資料庫_完整題庫備份.xlsx");
         }
 
         function resetToDefaultInDB() {
-            if (confirm("⚠️ 確定要清空雲端資料庫，恢復成最初的內建預設 4 題嗎？")) {
-                dbStatus.textContent = "🔄 正在寫入預設題庫...";
+            if (confirm("⚠️ 注意！這將會完全覆蓋並清空現有雲端資料庫的所有內容，恢復成預設的 4 題。確定嗎？")) {
+                dbStatus.textContent = "🔄 正在重置雲端...";
                 set(dbRef, defaultQuestions).then(() => {
-                    alert("✅ 雲端資料庫重置完成！");
+                    alert("✅ 雲端資料庫已徹底還原！");
                 });
             }
         }
 
+        //核心功能：【追加不覆蓋匯入】
         function handleExcelUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -259,17 +357,19 @@
 
                         return {
                             version: v.toString().trim(),
-                            question: q,
-                            A: a, B: b, C: c,
+                            question: q, A: a, B: b, C: c,
                             answer: ans.toString().trim().toUpperCase()
                         };
                     });
                     
-                    dbStatus.textContent = "📤 正在同步上傳至雲端資料庫...";
-                    set(dbRef, importedQuestions).then(() => {
-                        alert(`🎉 成功同步更新雲端資料庫！共 ${importedQuestions.length} 題。`);
+                    // 【不覆蓋核心邏輯】：將原本雲端的陣列（allDBQuestions）加上新上傳的陣列，再同步回去
+                    const finalCombinedQuestions = allDBQuestions.concat(importedQuestions);
+
+                    dbStatus.textContent = "📤 正在將新題目追加並同步至雲端...";
+                    set(dbRef, finalCombinedQuestions).then(() => {
+                        alert(`🎉 成功！本次追加了 ${importedQuestions.length} 題。雲端目前總計有 ${finalCombinedQuestions.length} 題！`);
                     }).catch(err => {
-                        alert("❌ 上傳失敗，請確認 Firebase 安全規則設定是否允許寫入。");
+                        alert("❌ 上傳失敗，請確認 Firebase 安全規則。");
                         console.error(err);
                     });
 
@@ -281,6 +381,9 @@
             reader.readAsBinaryString(file);
         }
 
+        // ==========================================
+        // 🐍 貪食蛇遊戲核心引擎核心邏輯
+        // ==========================================
         fontSizeSlider.addEventListener("input", (e) => {
             currentFontSize = parseInt(e.target.value); 
             document.getElementById("fontSizeVal").textContent = currentFontSize + "px";
@@ -311,7 +414,12 @@
         });
 
         function startGame() {
-            if (questions.length === 0) return;
+            if (filteredQuestions.length === 0) {
+                document.getElementById('qText').textContent = "⚠️ 當前選取的範圍內沒有任何題目，請重新選取！";
+                if (gameInterval) clearInterval(gameInterval);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
             isGameOver = false;
             score = 0;
             currentQuestionIndex = 0;
@@ -331,16 +439,16 @@
         }
 
         function loadQuestion() {
-            if (currentQuestionIndex >= questions.length) {
+            if (currentQuestionIndex >= filteredQuestions.length) {
                 isGameOver = true;
                 clearInterval(gameInterval);
-                alert(`🎉 恭喜你順利答完全部題目！\n最終得分: ${score}`);
-                startGame();
+                alert(`🎉 恭喜你順利答完本範例內所有的 ${filteredQuestions.length} 道關卡！\n最終得分: ${score}`);
+                applyFilterAndStart(); // 自動洗牌重新一輪
                 return;
             }
 
-            const q = questions[currentQuestionIndex];
-            document.getElementById('versionTag').textContent = `📍 範圍：${q.version}`;
+            const q = filteredQuestions[currentQuestionIndex];
+            document.getElementById('versionTag').textContent = `📍 目前題目範圍：${q.version}`;
             document.getElementById('qText').textContent = `【第 ${currentQuestionIndex+1} 題】${q.question}`;
             document.getElementById('level').textContent = currentQuestionIndex + 1;
 
@@ -405,7 +513,7 @@
                 const collisionRange = Math.max(35, currentFontSize * 0.7);
 
                 if (dist < 12 + collisionRange) {
-                    const currentAnswer = questions[currentQuestionIndex].answer;
+                    const currentAnswer = filteredQuestions[currentQuestionIndex].answer;
                     if (food.type === currentAnswer) {
                         score += 10; snakeLength += 3;
                         document.getElementById('score').textContent = score;
