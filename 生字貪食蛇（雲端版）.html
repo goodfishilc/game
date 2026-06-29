@@ -141,13 +141,30 @@
         // 🛠️ 填入您的 Firebase 設定 (請看後續教學步驟)
         // ==========================================
         const firebaseConfig = {
-            apiKey: "請更換為您的ApiKey",
-            authDomain: "請更換為您的專案ID.firebaseapp.com",
-            databaseURL: "https://請更換為您的專案ID-default-rtdb.firebaseio.com/",
-            projectId: "請更換為您的專案ID",
-            storageBucket: "請更換為您的專案ID.appspot.com",
-            messagingSenderId: "請更換",
-            appId: "請更換"
+          <script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyAc_Yw8TmOnAM4PIo9NR3TCzs9H2C_aRW8",
+    authDomain: "snake-wordquiz.firebaseapp.com",
+    databaseURL: "https://snake-wordquiz-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "snake-wordquiz",
+    storageBucket: "snake-wordquiz.firebasestorage.app",
+    messagingSenderId: "941457178414",
+    appId: "1:941457178414:web:5e3e52fa3cb5864d17c4bf",
+    measurementId: "G-978S568P4X"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
         };
 
         // 初始化 Firebase
