@@ -344,6 +344,7 @@
             gameInterval = setInterval(gameLoop, 1000 / 60); 
         }
 
+        // 載入題目（防重疊分配）
         function loadQuestion() {
             if (currentQuestionIndex >= questions.length) {
                 isGameOver = true;
@@ -416,7 +417,7 @@
                 head.y += Math.sin(angle) * speed;
             }
 
-            // 【穿牆控制技術】取代原先的撞牆判定，當超出畫布時，自動變更到對面邊界
+            // 【無限穿牆設定】超出畫布邊界時，自動從對面冒出來
             if (head.x < 0) head.x = canvas.width;
             if (head.x > canvas.width) head.x = 0;
             if (head.y < 0) head.y = canvas.height;
@@ -431,7 +432,7 @@
         function checkCollisions() {
             let head = snake[0];
 
-            // 移除舊有的牆壁碰撞 GameOver 判定程式碼
+            // 已刪除舊有的牆壁碰撞（GameOver）判斷
 
             for (let i = 0; i < foods.length; i++) {
                 let food = foods[i];
