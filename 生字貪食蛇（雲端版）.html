@@ -59,7 +59,7 @@
         .setting-group {
             display: flex; justify-content: space-around; align-items: center;
             flex-wrap: wrap; margin-top: 15px; background: rgba(0,0,0,0.2);
-            padding: 10px; border-radius: 8px; gap: 10px;
+            padding: 10px; border-radius: 8px; gap: 15px;
         }
         .filter-group {
             background: #16a085;
@@ -139,14 +139,19 @@
         
         <div class="setting-group">
             <div class="setting-item">
-                <label for="fontSizeSlider">🔤 全域字體大小:</label>
+                <label for="fontSizeSlider">🔤 全域字體:</label>
                 <input type="range" id="fontSizeSlider" min="20" max="100" value="66">
                 <span id="fontSizeVal">66px</span>
             </div>
             <div class="setting-item">
-                <label for="canvasWidthSlider">🖥️ 遊戲畫面寬度:</label>
+                <label for="canvasWidthSlider">↔️ 畫面寬度:</label>
                 <input type="range" id="canvasWidthSlider" min="400" max="1600" step="50" value="1200">
                 <span id="canvasWidthVal">1200px</span>
+            </div>
+            <div class="setting-item">
+                <label for="canvasHeightSlider">↕️ 畫面高度:</label>
+                <input type="range" id="canvasHeightSlider" min="300" max="1200" step="50" value="800">
+                <span id="canvasHeightVal">800px</span>
             </div>
         </div>
     </div>
@@ -179,7 +184,6 @@
             measurementId: "G-978S568P4X"
         };
 
-        // 初始化 Firebase 與 Realtime Database
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
         const dbRef = ref(database, "snake_questions");
@@ -188,6 +192,7 @@
         const ctx = canvas.getContext("2d");
         const fontSizeSlider = document.getElementById("fontSizeSlider");
         const canvasWidthSlider = document.getElementById("canvasWidthSlider");
+        const canvasHeightSlider = document.getElementById("canvasHeightSlider"); // 新增高度控制
         const questionBox = document.getElementById("questionBox");
         const wrongNotice = document.getElementById("wrongNotice");
         const dbStatus = document.getElementById("dbStatus");
@@ -217,7 +222,6 @@
         let isGameOver = false;
         let noticeTimeout;
 
-        // 即時監聽雲端資料庫
         onValue(dbRef, (snapshot) => {
             const data = snapshot.val();
             if (data && Array.isArray(data)) {
@@ -297,19 +301,15 @@
             XLSX.writeFile(workbook, "雲端資料庫_完整題庫備份.xlsx");
         }
 
-        // 🔒 密碼保護的核心重置功能
         function resetToDefaultInDB() {
-            // 第一關：要求輸入管理密碼
             const password = prompt("🔒 此操作將刪除雲端所有題目！\n請輸入管理員密碼以繼續：");
-            
-            if (password === null) return; // 使用者按取消
+            if (password === null) return; 
 
             if (password !== "9512626") {
                 alert("❌ 密碼錯誤！無法重置資料庫。");
                 return;
             }
 
-            // 第二關：再次確認
             if (confirm("⚠️ 密碼正確。確定要完全覆蓋並清空現有雲端資料庫的所有內容，恢復成預設的 4 題嗎？")) {
                 dbStatus.textContent = "🔄 正在重置雲端...";
                 set(dbRef, defaultQuestions).then(() => {
@@ -390,18 +390,29 @@
             questionBox.style.fontSize = currentFontSize + "px";
         });
 
+        // 寬度設定動態縮放
         canvasWidthSlider.addEventListener("input", (e) => {
             const width = parseInt(e.target.value);
-            const height = Math.round(width * 2 / 3); 
             document.getElementById("canvasWidthVal").textContent = width + "px";
             const oldWidth = canvas.width;
-            const oldHeight = canvas.height;
             canvas.width = width;
-            canvas.height = height;
 
             if (foods.length > 0) {
                 foods.forEach(food => {
                     food.x = (food.x / oldWidth) * width;
+                });
+            }
+        });
+
+        // 新增：高度設定動態縮放
+        canvasHeightSlider.addEventListener("input", (e) => {
+            const height = parseInt(e.target.value);
+            document.getElementById("canvasHeightVal").textContent = height + "px";
+            const oldHeight = canvas.height;
+            canvas.height = height;
+
+            if (foods.length > 0) {
+                foods.forEach(food => {
                     food.y = (food.y / oldHeight) * height;
                 });
             }
@@ -461,8 +472,9 @@
 
                 do {
                     isOverlapping = false;
+                    // 改為動態參照目前的畫面的寬高，避免邊界死角
                     posX = Math.random() * (canvas.width - 350) + 175;
-                    posY = Math.random() * (canvas.height - 250) + 125;
+                    posY = Math.random() * (canvas.height - 200) + 100;
 
                     for (let j = 0; j < foods.length; j++) {
                         let other = foods[j];
