@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>全字體可調式問答貪食蛇 - Firebase 雲端資料庫版</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
     <style>
         * { box-sizing: border-box; }
@@ -99,8 +96,8 @@
     <div class="control-panel">
         <div id="setupBox" class="upload-section">
             <div class="btn-group">
-                <button class="btn-export" onclick="exportTemplate()">📥 下載資料庫現有題庫 Excel</button>
-                <button class="btn-reset" onclick="resetToDefaultInDB()">🔄 重置雲端資料庫為預設值</button>
+                <button class="btn-export" id="btnExport">📥 下載資料庫現有題庫 Excel</button>
+                <button class="btn-reset" id="btnReset">🔄 重置雲端資料庫為預設值</button>
             </div>
             <hr style="width: 100%; border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 5px 0;">
             <div>
@@ -136,41 +133,26 @@
         </div>
     </div>
 
-    <script>
-        // ==========================================
-        // 🛠️ 填入您的 Firebase 設定 (請看後續教學步驟)
-        // ==========================================
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+        import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
+
+        // 您的 Web 應用程式 Firebase 設定
         const firebaseConfig = {
-          <script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyAc_Yw8TmOnAM4PIo9NR3TCzs9H2C_aRW8",
-    authDomain: "snake-wordquiz.firebaseapp.com",
-    databaseURL: "https://snake-wordquiz-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "snake-wordquiz",
-    storageBucket: "snake-wordquiz.firebasestorage.app",
-    messagingSenderId: "941457178414",
-    appId: "1:941457178414:web:5e3e52fa3cb5864d17c4bf",
-    measurementId: "G-978S568P4X"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
+            apiKey: "AIzaSyAc_Yw8TmOnAM4PIo9NR3TCzs9H2C_aRW8",
+            authDomain: "snake-wordquiz.firebaseapp.com",
+            databaseURL: "https://snake-wordquiz-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "snake-wordquiz",
+            storageBucket: "snake-wordquiz.firebasestorage.app",
+            messagingSenderId: "941457178414",
+            appId: "1:941457178414:web:5e3e52fa3cb5864d17c4bf",
+            measurementId: "G-978S568P4X"
         };
 
-        // 初始化 Firebase
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        const dbRef = database.ref("snake_questions");
+        // 初始化 Firebase 與 Realtime Database
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        const dbRef = ref(database, "snake_questions");
 
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
@@ -201,23 +183,27 @@
         let isGameOver = false;
         let noticeTimeout;
 
-        // 【核心機制】即時監聽雲端資料庫 (當資料庫有變動時，網頁自動更新且重啟遊戲)
-        dbRef.on("value", (snapshot) => {
+        // 即時監聽雲端資料庫
+        onValue(dbRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
                 questions = data;
                 dbStatus.textContent = `🟢 雲端資料庫連線成功！共有 ${questions.length} 題。`;
             } else {
-                // 如果資料庫是空的，自動初始化寫入預設題目
                 questions = defaultQuestions;
-                dbRef.set(defaultQuestions);
+                set(dbRef, defaultQuestions);
                 dbStatus.textContent = "🟡 雲端查無資料，已自動建立預設題目。";
             }
             startGame();
         }, (error) => {
-            dbStatus.textContent = "🔴 資料庫連線失敗，請檢查金鑰及規則設定。";
+            dbStatus.textContent = "🔴 資料庫連線失敗，請檢查安全規則設定。";
             console.error(error);
         });
+
+        // 綁定按鈕與上傳事件
+        document.getElementById("btnExport").addEventListener("click", exportTemplate);
+        document.getElementById("btnReset").addEventListener("click", resetToDefaultInDB);
+        document.getElementById('excelFile').addEventListener('change', handleExcelUpload);
 
         function exportTemplate() {
             if (questions.length === 0) return;
@@ -230,7 +216,7 @@
         function resetToDefaultInDB() {
             if (confirm("⚠️ 確定要清空雲端資料庫，恢復成最初的內建預設 4 題嗎？")) {
                 dbStatus.textContent = "🔄 正在寫入預設題庫...";
-                dbRef.set(defaultQuestions).then(() => {
+                set(dbRef, defaultQuestions).then(() => {
                     alert("✅ 雲端資料庫重置完成！");
                 });
             }
@@ -279,9 +265,8 @@
                         };
                     });
                     
-                    // 【寫入雲端資料庫】
                     dbStatus.textContent = "📤 正在同步上傳至雲端資料庫...";
-                    dbRef.set(importedQuestions).then(() => {
+                    set(dbRef, importedQuestions).then(() => {
                         alert(`🎉 成功同步更新雲端資料庫！共 ${importedQuestions.length} 題。`);
                     }).catch(err => {
                         alert("❌ 上傳失敗，請確認 Firebase 安全規則設定是否允許寫入。");
@@ -295,8 +280,6 @@
             };
             reader.readAsBinaryString(file);
         }
-
-        document.getElementById('excelFile').addEventListener('change', handleExcelUpload);
 
         fontSizeSlider.addEventListener("input", (e) => {
             currentFontSize = parseInt(e.target.value); 
