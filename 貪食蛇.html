@@ -169,7 +169,7 @@
             </div>
             <div class="setting-item">
                 <label for="canvasWidthSlider">🖥️ 遊戲畫面寬度:</label>
-                <input type="range" id="canvasWidthSlider" min="400" max="1600" step="50" value="600">
+                <input type="range" id="canvasWidthSlider" min="400" max="1600" step="50" value="1200">
                 <span id="canvasWidthVal">1200px</span>
             </div>
         </div>
@@ -344,7 +344,6 @@
             gameInterval = setInterval(gameLoop, 1000 / 60); 
         }
 
-        // 載入題目（加入防重疊演算法）
         function loadQuestion() {
             if (currentQuestionIndex >= questions.length) {
                 isGameOver = true;
@@ -361,22 +360,18 @@
             const options = ['A', 'B', 'C'];
             foods = [];
 
-            // 依序為 A、B、C 尋找不重疊的位置
             options.forEach((opt, index) => {
                 let posX, posY;
                 let isOverlapping;
                 let attempts = 0;
                 
-                // 根據當前字體動態調整最小安全距離（確保大字體時安全距離拉大）
                 const minDistance = Math.max(220, currentFontSize * 3.2);
 
                 do {
                     isOverlapping = false;
-                    // 在畫布安全範圍內隨機取點
                     posX = Math.random() * (canvas.width - 350) + 175;
                     posY = Math.random() * (canvas.height - 250) + 125;
 
-                    // 檢查是否與前面已經決定好位置的選項太接近
                     for (let j = 0; j < foods.length; j++) {
                         let other = foods[j];
                         let dist = Math.sqrt(Math.pow(posX - other.x, 2) + Math.pow(posY - other.y, 2));
@@ -388,7 +383,6 @@
                     }
                     
                     attempts++;
-                    // 防死鎖安全網：若隨機取點超過 200 次仍找不滿位置，就稍微降低安全距離
                     if (attempts > 200) {
                         break; 
                     }
@@ -422,6 +416,12 @@
                 head.y += Math.sin(angle) * speed;
             }
 
+            // 【穿牆控制技術】取代原先的撞牆判定，當超出畫布時，自動變更到對面邊界
+            if (head.x < 0) head.x = canvas.width;
+            if (head.x > canvas.width) head.x = 0;
+            if (head.y < 0) head.y = canvas.height;
+            if (head.y > canvas.height) head.y = 0;
+
             snake.unshift(head);
             if (snake.length > snakeLength) {
                 snake.pop();
@@ -431,10 +431,7 @@
         function checkCollisions() {
             let head = snake[0];
 
-            if (head.x < 0 || head.x > canvas.width || head.y < 0 || head.y > canvas.height) {
-                gameOver("💥 撞牆啦！遊戲結束！");
-                return;
-            }
+            // 移除舊有的牆壁碰撞 GameOver 判定程式碼
 
             for (let i = 0; i < foods.length; i++) {
                 let food = foods[i];
@@ -489,13 +486,6 @@
                 ctx.fill();
                 ctx.closePath();
             });
-        }
-
-        function gameOver(msg) {
-            isGameOver = true;
-            clearInterval(gameInterval);
-            alert(`${msg}\n最終得分: ${score}`);
-            location.reload(); 
         }
     </script>
 </body>
