@@ -1,289 +1,292 @@
 <!DOCTYPE html>
 <html>
+<head>
+    <style>
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; }
+        /* 確保有足夠的空間可以繪圖 */
+        .spark-widget-shell { display: flex; justify-content: center; align-items: center; min-height: 400px; }
+    </style>
+</head>
 <body class="spark-widget-shell">
+<!-- 必須要有這個 id="viz" 的 div，D3 才有地方可以畫圖 -->
+<div id="viz" style="width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;"></div>
+
 <script>
-/**
- * Sudoku Logic & Visualization
- * Uses D3.js for a responsive 9x9 grid.
- * Mobile-friendly input handling and real-time highlighting.
- */
+try {
+    const SOLUTION = [
+        5, 3, 4, 6, 7, 8, 9, 1, 2,
+        6, 7, 2, 1, 9, 5, 3, 4, 8,
+        1, 9, 8, 3, 4, 2, 5, 6, 7,
+        8, 5, 9, 7, 6, 1, 4, 2, 3,
+        4, 2, 6, 8, 5, 3, 7, 9, 1,
+        7, 1, 3, 9, 2, 4, 8, 5, 6,
+        9, 6, 1, 5, 3, 7, 2, 8, 4,
+        2, 8, 7, 4, 1, 9, 6, 3, 5,
+        3, 4, 5, 2, 8, 6, 1, 7, 9
+    ];
 
-const SOLUTION = [
-    5, 3, 4, 6, 7, 8, 9, 1, 2,
-    6, 7, 2, 1, 9, 5, 3, 4, 8,
-    1, 9, 8, 3, 4, 2, 5, 6, 7,
-    8, 5, 9, 7, 6, 1, 4, 2, 3,
-    4, 2, 6, 8, 5, 3, 7, 9, 1,
-    7, 1, 3, 9, 2, 4, 8, 5, 6,
-    9, 6, 1, 5, 3, 7, 2, 8, 4,
-    2, 8, 7, 4, 1, 9, 6, 3, 5,
-    3, 4, 5, 2, 8, 6, 1, 7, 9
-];
-
-// Difficulty masks (1 = hidden)
-const MASKS = {
-    'Easy':   [0,0,1,0,0,1,0,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,1,0,0,0,1,1,0,0,0,0,1,1,0,1,0,1,0,1,0,1,1,0,0,0,0,1,1,0,0,0,1,1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,1,0,1,0,0,1,0,0],
-    'Medium': [1,0,1,0,0,1,0,1,0,1,0,1,1,0,1,1,0,0,0,1,0,0,1,0,1,1,1,0,0,1,1,0,1,0,0,1,1,1,1,0,1,0,1,1,1,1,0,0,1,0,1,1,0,0,1,1,1,0,1,0,0,1,0,0,0,1,1,0,1,1,0,1,0,1,0,1,0,0,1,0,1],
-    'Hard':   [1,1,1,0,0,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,0,1,1,0,0,1,1]
-};
-
-const { state } = WH.createApp({
-    title: "Sudoku",
-    params: {
-        difficulty: {
-            type: 'select',
-            value: 'Easy',
-            options: ['Easy', 'Medium', 'Hard'],
-            label: 'Difficulty'
-        },
-        validate: {
-            type: 'button',
-            label: 'Validate',
-            onClick: (s) => { s.triggerValidate = (s.triggerValidate || 0) + 1; }
-        },
-        reset: {
-            type: 'button',
-            label: 'Reset',
-            onClick: (s) => { s.triggerReset = (s.triggerReset || 0) + 1; }
-        }
-    },
-    internal_state: {
-        gridData: [],
-        selectedIdx: -1,
-        mistakes: 0,
-        triggerValidate: 0,
-        triggerReset: 0
-    },
-    sizing: { viz: { height: 420 } },
-    editorial: {
-        hud: [
-            { label: "Status", value: "Playing" },
-            { label: "Mistakes", value: "0" }
-        ]
-    }
-});
-
-// 解構參數時加入 ui，避免 ReferenceError
-WH.initD3('viz', ({ el, width, height, state, ui }) => {
-    // Styling constants
-    const COLOR_SURFACE = WH.getColor('--surface-container');
-    const COLOR_OUTLINE = WH.getColor('--outline');
-    const COLOR_PRIMARY = WH.getColor('--primary');
-    const COLOR_ERROR = WH.getColor('--error');
-    const COLOR_ON_SURFACE = WH.getColor('--on-surface-default');
-    const COLOR_HIGHLIGHT = WH.transparent(WH.getColor('--primary'), 0.15);
-    const COLOR_SELECTED = WH.transparent(WH.getColor('--primary'), 0.3);
-
-    // Container setup
-    const container = d3.select(el)
-        .style('display', 'flex')
-        .style('justify-content', 'center')
-        .style('align-items', 'center')
-        .style('height', '100%')
-        .style('padding', '12px')
-        .style('box-sizing', 'border-box');
-
-    const boardSize = Math.max(150, Math.min(width - 24, height - 24, 380));
-    
-    const grid = container.append('div')
-        .style('display', 'grid')
-        .style('grid-template-columns', 'repeat(9, 1fr)')
-        .style('width', `${boardSize}px`)
-        .style('height', `${boardSize}px`)
-        .style('border', `2px solid ${COLOR_OUTLINE}`)
-        .style('background', COLOR_OUTLINE)
-        .style('box-sizing', 'border-box')
-        .style('overflow', 'hidden');
-
-    const generateBoard = () => {
-        const mask = MASKS[state.difficulty] || MASKS.Easy;
-        state.gridData = SOLUTION.map((val, i) => ({
-            solution: val,
-            fixed: mask[i] === 0,
-            value: mask[i] === 0 ? val : null,
-            error: false
-        }));
-        state.mistakes = 0;
-        state.selectedIdx = -1;
-        updateHUD("Playing", 0);
+    const MASKS = {
+        'Easy':   [0,0,1,0,0,1,0,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,1,0,0,0,1,1,0,0,0,0,1,1,0,1,0,1,0,1,0,1,1,0,0,0,0,1,1,0,0,0,1,1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,1,0,1,0,0,1,0,0],
+        'Medium': [1,0,1,0,0,1,0,1,0,1,0,1,1,0,1,1,0,0,0,1,0,0,1,0,1,1,1,0,0,1,1,0,1,0,0,1,1,1,1,0,1,0,1,1,1,1,0,0,1,0,1,1,0,0,1,1,1,0,1,0,0,1,0,0,0,1,1,0,1,1,0,1,0,1,0,1,0,0,1,0,1],
+        'Hard':   [1,1,1,0,0,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,0,1,1,0,0,1,1]
     };
 
-    const updateHUD = (status, mistakes) => {
-        // 安全檢查：如果 ui 存在且有 setEditorial 方法，就呼叫它
-        // 否則退回直接修改 state.editorial 的方式
-        if (ui && ui.setEditorial) {
-            ui.setEditorial({
-                hud: [
-                    { label: "Status", value: status },
-                    { label: "Mistakes", value: mistakes.toString() }
-                ]
-            });
-        } else {
-            state.editorial = {
-                hud: [
-                    { label: "Status", value: status },
-                    { label: "Mistakes", value: mistakes.toString() }
-                ]
-            };
-        }
-    };
-
-    const handleInput = (idx, val) => {
-        const num = parseInt(val);
-        if (isNaN(num) || num < 1 || num > 9) {
-            state.gridData[idx].value = null;
-        } else {
-            state.gridData[idx].value = num;
-            state.gridData[idx].error = false;
-        }
-        state.gridData = [...state.gridData]; // Trigger reactivity
-    };
-
-    const render = () => {
-        const cells = grid.selectAll('.sudoku-cell')
-            .data(state.gridData);
-
-        const cellsEnter = cells.enter()
-            .append('div')
-            .attr('class', 'sudoku-cell')
-            .style('display', 'flex')
-            .style('justify-content', 'center')
-            .style('align-items', 'center')
-            .style('background', COLOR_SURFACE)
-            .style('position', 'relative')
-            .style('min-width', '0')
-            .style('min-height', '0')
-            .style('box-sizing', 'border-box')
-            .on('pointerdown', function(e) {
-                const currentD = d3.select(this).datum();
-                state.selectedIdx = state.gridData.indexOf(currentD);
-            });
-
-        // Add inputs to enter selection with strict sizing limit guards
-        cellsEnter.append('input')
-            .attr('type', 'tel') 
-            .attr('inputmode', 'numeric')
-            .attr('pattern', '[1-9]*')
-            .attr('maxlength', '1')
-            .style('width', '100%')
-            .style('height', '100%')
-            .style('min-width', '0')
-            .style('min-height', '0')
-            .style('box-sizing', 'border-box')
-            .style('border', 'none')
-            .style('background', 'transparent')
-            .style('text-align', 'center')
-            .style('font-size', `${boardSize / 18}px`)
-            .style('font-weight', '500')
-            .style('outline', 'none')
-            .style('padding', '0')
-            .on('input', function(e) {
-                // 使用 d3.select(this).datum() 確保拿到最新資料參照
-                const currentD = d3.select(this).datum();
-                const idx = state.gridData.indexOf(currentD);
-                if (idx !== -1) {
-                    handleInput(idx, this.value);
-                }
-            })
-            .on('focus', function(e) {
-                const currentD = d3.select(this).datum();
-                state.selectedIdx = state.gridData.indexOf(currentD);
-            });
-
-        // Merge and update
-        const cellsAll = cellsEnter.merge(cells);
-
-        cellsAll.each(function(d, i) {
-            const row = Math.floor(i / 9);
-            const col = i % 9;
-            const selIdx = state.selectedIdx;
-            const selRow = Math.floor(selIdx / 9);
-            const selCol = selIdx % 9;
-            const selBox = Math.floor(selRow / 3) * 3 + Math.floor(selCol / 3);
-            const curBox = Math.floor(row / 3) * 3 + Math.floor(col / 3);
-
-            const isSelected = i === selIdx;
-            const isHighlighted = selIdx !== -1 && (row === selRow || col === selCol || curBox === selBox);
-            
-            const cell = d3.select(this);
-            const input = cell.select('input');
-
-            // Borders
-            cell.style('border-right', col % 3 === 2 && col !== 8 ? `2px solid ${COLOR_OUTLINE}` : `0.5px solid ${COLOR_OUTLINE}`)
-                .style('border-bottom', row % 3 === 2 && row !== 8 ? `2px solid ${COLOR_OUTLINE}` : `0.5px solid ${COLOR_OUTLINE}`);
-
-            // Colors
-            let bg = COLOR_SURFACE;
-            if (isSelected) bg = COLOR_SELECTED;
-            else if (isHighlighted) bg = COLOR_HIGHLIGHT;
-            cell.style('background', bg);
-
-            // Input state
-            input.property('value', d.value || '')
-                 .property('disabled', d.fixed)
-                 .style('color', d.error ? COLOR_ERROR : (d.fixed ? COLOR_ON_SURFACE : COLOR_PRIMARY))
-                 .style('cursor', d.fixed ? 'default' : 'text');
-        });
-    };
-
-    // Subscriptions
-    state._subscribe('gridData', render);
-    state._subscribe('selectedIdx', render);
-
-    state._subscribe('difficulty', () => {
-        generateBoard();
-        render();
-    });
-
-    state._subscribe('triggerReset', () => {
-        generateBoard();
-        render();
-    });
-
-    state._subscribe('triggerValidate', () => {
-        let errCount = 0;
-        let complete = true;
-
-        state.gridData.forEach((d) => {
-            if (d.value === null) {
-                complete = false;
-            } else if (d.value !== d.solution) {
-                d.error = true;
-                errCount++;
-            } else {
-                d.error = false;
+    // 正確解構出 ui，避免 ReferenceError
+    const { state, ui } = WH.createApp({
+        title: "Sudoku",
+        params: {
+            difficulty: {
+                type: 'select',
+                value: 'Easy',
+                options: ['Easy', 'Medium', 'Hard'],
+                label: 'Difficulty'
+            },
+            validate: {
+                type: 'button',
+                label: 'Validate',
+                onClick: (s) => { s.triggerValidate = (s.triggerValidate || 0) + 1; }
+            },
+            reset: {
+                type: 'button',
+                label: 'Reset',
+                onClick: (s) => { s.triggerReset = (s.triggerReset || 0) + 1; }
             }
-        });
-
-        state.mistakes += errCount;
-        state.gridData = [...state.gridData];
-        
-        const status = (complete && errCount === 0) ? "Solved!" : "Playing";
-        updateHUD(status, state.mistakes);
+        },
+        internal_state: {
+            gridData: [],
+            selectedIdx: -1,
+            mistakes: 0,
+            triggerValidate: 0,
+            triggerReset: 0
+        },
+        sizing: { viz: { height: 420 } },
+        editorial: {
+            hud: [
+                { label: "Status", value: "Playing" },
+                { label: "Mistakes", value: "0" }
+            ]
+        }
     });
 
-    // Initial boot
-    generateBoard();
-    render();
+    WH.initD3('viz', (initParams) => {
+        try {
+            // 安全防護：確保環境變數有預設值，避免產生 NaN
+            const el = initParams.el || document.getElementById('viz');
+            const width = Number(initParams.width) || 350;
+            const height = Number(initParams.height) || 420;
+            
+            // 安全防護：確保 D3 有載入
+            if (typeof d3 === 'undefined') {
+                throw new Error("D3.js 套件尚未載入");
+            }
 
-    return (arg1, arg2) => {
-        let wVal, hVal;
-        if (typeof arg1 === 'object' && arg1 !== null) {
-            wVal = arg1.width;
-            hVal = arg1.height;
-        } else {
-            wVal = arg1;
-            hVal = arg2;
+            const COLOR_SURFACE = WH.getColor('--surface-container') || '#ffffff';
+            const COLOR_OUTLINE = WH.getColor('--outline') || '#cccccc';
+            const COLOR_PRIMARY = WH.getColor('--primary') || '#0055ff';
+            const COLOR_ERROR = WH.getColor('--error') || '#ff0000';
+            const COLOR_ON_SURFACE = WH.getColor('--on-surface-default') || '#000000';
+            const COLOR_HIGHLIGHT = WH.transparent ? WH.transparent(COLOR_PRIMARY, 0.15) : '#e6efff';
+            const COLOR_SELECTED = WH.transparent ? WH.transparent(COLOR_PRIMARY, 0.3) : '#cce0ff';
+
+            const container = d3.select(el)
+                .style('display', 'flex')
+                .style('justify-content', 'center')
+                .style('align-items', 'center')
+                .style('width', '100%')
+                .style('height', '100%')
+                .style('padding', '12px')
+                .style('box-sizing', 'border-box');
+
+            // 確保畫布尺寸不會因為 NaN 壞掉
+            const boardSize = Math.max(150, Math.min(width - 24, height - 24, 380));
+            
+            // 清空先前的內容以防重複渲染
+            container.selectAll('*').remove();
+            
+            const grid = container.append('div')
+                .style('display', 'grid')
+                .style('grid-template-columns', 'repeat(9, 1fr)')
+                .style('width', `${boardSize}px`)
+                .style('height', `${boardSize}px`)
+                .style('border', `2px solid ${COLOR_OUTLINE}`)
+                .style('background', COLOR_OUTLINE)
+                .style('box-sizing', 'border-box')
+                .style('overflow', 'hidden');
+
+            const updateHUD = (status, mistakes) => {
+                const hudData = {
+                    hud: [
+                        { label: "Status", value: status },
+                        { label: "Mistakes", value: mistakes.toString() }
+                    ]
+                };
+                if (typeof ui !== 'undefined' && ui.setEditorial) {
+                    ui.setEditorial(hudData);
+                } else if (state) {
+                    state.editorial = hudData;
+                }
+            };
+
+            const generateBoard = () => {
+                const mask = MASKS[state.difficulty] || MASKS.Easy;
+                state.gridData = SOLUTION.map((val, i) => ({
+                    solution: val,
+                    fixed: mask[i] === 0,
+                    value: mask[i] === 0 ? val : null,
+                    error: false
+                }));
+                state.mistakes = 0;
+                state.selectedIdx = -1;
+                updateHUD("Playing", 0);
+            };
+
+            const handleInput = (idx, val) => {
+                const num = parseInt(val);
+                if (isNaN(num) || num < 1 || num > 9) {
+                    state.gridData[idx].value = null;
+                } else {
+                    state.gridData[idx].value = num;
+                    state.gridData[idx].error = false;
+                }
+                state.gridData = [...state.gridData];
+            };
+
+            const render = () => {
+                const cells = grid.selectAll('.sudoku-cell').data(state.gridData);
+
+                const cellsEnter = cells.enter()
+                    .append('div')
+                    .attr('class', 'sudoku-cell')
+                    .style('display', 'flex')
+                    .style('justify-content', 'center')
+                    .style('align-items', 'center')
+                    .style('background', COLOR_SURFACE)
+                    .style('position', 'relative')
+                    .style('min-width', '0')
+                    .style('min-height', '0')
+                    .style('box-sizing', 'border-box')
+                    .on('pointerdown', function(e) {
+                        const currentD = d3.select(this).datum();
+                        state.selectedIdx = state.gridData.indexOf(currentD);
+                    });
+
+                cellsEnter.append('input')
+                    .attr('type', 'tel') 
+                    .attr('inputmode', 'numeric')
+                    .attr('pattern', '[1-9]*')
+                    .attr('maxlength', '1')
+                    .style('width', '100%')
+                    .style('height', '100%')
+                    .style('box-sizing', 'border-box')
+                    .style('border', 'none')
+                    .style('background', 'transparent')
+                    .style('text-align', 'center')
+                    .style('font-size', `${boardSize / 18}px`)
+                    .style('font-weight', '500')
+                    .style('outline', 'none')
+                    .style('padding', '0')
+                    .on('input', function(e) {
+                        const currentD = d3.select(this).datum();
+                        const idx = state.gridData.indexOf(currentD);
+                        if (idx !== -1) handleInput(idx, this.value);
+                    })
+                    .on('focus', function(e) {
+                        const currentD = d3.select(this).datum();
+                        state.selectedIdx = state.gridData.indexOf(currentD);
+                    });
+
+                const cellsAll = cellsEnter.merge(cells);
+
+                cellsAll.each(function(d, i) {
+                    const row = Math.floor(i / 9);
+                    const col = i % 9;
+                    const selIdx = state.selectedIdx;
+                    const selRow = Math.floor(selIdx / 9);
+                    const selCol = selIdx % 9;
+                    const selBox = Math.floor(selRow / 3) * 3 + Math.floor(selCol / 3);
+                    const curBox = Math.floor(row / 3) * 3 + Math.floor(col / 3);
+
+                    const isSelected = i === selIdx;
+                    const isHighlighted = selIdx !== -1 && (row === selRow || col === selCol || curBox === selBox);
+                    
+                    const cell = d3.select(this);
+                    const input = cell.select('input');
+
+                    cell.style('border-right', col % 3 === 2 && col !== 8 ? `2px solid ${COLOR_OUTLINE}` : `0.5px solid ${COLOR_OUTLINE}`)
+                        .style('border-bottom', row % 3 === 2 && row !== 8 ? `2px solid ${COLOR_OUTLINE}` : `0.5px solid ${COLOR_OUTLINE}`);
+
+                    let bg = COLOR_SURFACE;
+                    if (isSelected) bg = COLOR_SELECTED;
+                    else if (isHighlighted) bg = COLOR_HIGHLIGHT;
+                    cell.style('background', bg);
+
+                    input.property('value', d.value || '')
+                         .property('disabled', d.fixed)
+                         .style('color', d.error ? COLOR_ERROR : (d.fixed ? COLOR_ON_SURFACE : COLOR_PRIMARY))
+                         .style('cursor', d.fixed ? 'default' : 'text');
+                });
+            };
+
+            // 安全防護：確保 _subscribe 方法存在
+            if (typeof state._subscribe === 'function') {
+                state._subscribe('gridData', render);
+                state._subscribe('selectedIdx', render);
+                state._subscribe('difficulty', () => { generateBoard(); render(); });
+                state._subscribe('triggerReset', () => { generateBoard(); render(); });
+                state._subscribe('triggerValidate', () => {
+                    let errCount = 0;
+                    let complete = true;
+                    state.gridData.forEach((d) => {
+                        if (d.value === null) { complete = false; } 
+                        else if (d.value !== d.solution) { d.error = true; errCount++; } 
+                        else { d.error = false; }
+                    });
+                    state.mistakes += errCount;
+                    state.gridData = [...state.gridData];
+                    updateHUD((complete && errCount === 0) ? "Solved!" : "Playing", state.mistakes);
+                });
+            }
+
+            generateBoard();
+            render();
+
+            return (arg1, arg2) => {
+                let wVal, hVal;
+                if (typeof arg1 === 'object' && arg1 !== null) {
+                    wVal = arg1.width; hVal = arg1.height;
+                } else {
+                    wVal = arg1; hVal = arg2;
+                }
+                wVal = Number(wVal) || 350;
+                hVal = Number(hVal) || 420;
+                const newSize = Math.max(150, Math.min(wVal - 24, hVal - 24, 380));
+                grid.style('width', `${newSize}px`).style('height', `${newSize}px`);
+                grid.selectAll('input').style('font-size', `${newSize / 18}px`);
+                render();
+            };
+
+        } catch (d3Error) {
+            // 如果 D3 初始化或執行過程中報錯，把錯誤印在畫面上
+            const errorDiv = initParams.el || document.getElementById('viz');
+            if (errorDiv) {
+                errorDiv.innerHTML = `<div style="color: red; padding: 20px; font-family: sans-serif;">
+                    <h3>渲染錯誤 (D3 Init)</h3>
+                    <p>${d3Error.message}</p>
+                </div>`;
+            }
         }
-        wVal = Number(wVal) || 300;
-        hVal = Number(hVal) || 300;
-        const newSize = Math.max(150, Math.min(wVal - 24, hVal - 24, 380));
-        grid.style('width', `${newSize}px`)
-            .style('height', `${newSize}px`);
-        grid.selectAll('input').style('font-size', `${newSize / 18}px`);
-        render();
-    };
-});
+    });
+
+} catch (appError) {
+    // 如果是最外層的 WH.createApp 或環境變數報錯，把錯誤印在畫面上
+    const vizDiv = document.getElementById('viz');
+    if (vizDiv) {
+        vizDiv.innerHTML = `<div style="color: red; padding: 20px; font-family: sans-serif;">
+            <h3>初始化錯誤 (App Init)</h3>
+            <p>${appError.message}</p>
+        </div>`;
+    }
+}
 </script>
 </body>
 </html>
