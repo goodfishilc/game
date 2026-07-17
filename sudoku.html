@@ -1,4 +1,5 @@
-<!-- ... existing code ... -->
+<!DOCTYPE html>
+<html>
 <body class="spark-widget-shell">
 <script>
 /**
@@ -62,7 +63,8 @@ const { state } = WH.createApp({
     }
 });
 
-WH.initD3('viz', ({ el, width, height, state }) => {
+// 解構參數時加入 ui，避免 ReferenceError
+WH.initD3('viz', ({ el, width, height, state, ui }) => {
     // Styling constants
     const COLOR_SURFACE = WH.getColor('--surface-container');
     const COLOR_OUTLINE = WH.getColor('--outline');
@@ -107,12 +109,23 @@ WH.initD3('viz', ({ el, width, height, state }) => {
     };
 
     const updateHUD = (status, mistakes) => {
-        ui.setEditorial({
-            hud: [
-                { label: "Status", value: status },
-                { label: "Mistakes", value: mistakes.toString() }
-            ]
-        });
+        // 安全檢查：如果 ui 存在且有 setEditorial 方法，就呼叫它
+        // 否則退回直接修改 state.editorial 的方式
+        if (ui && ui.setEditorial) {
+            ui.setEditorial({
+                hud: [
+                    { label: "Status", value: status },
+                    { label: "Mistakes", value: mistakes.toString() }
+                ]
+            });
+        } else {
+            state.editorial = {
+                hud: [
+                    { label: "Status", value: status },
+                    { label: "Mistakes", value: mistakes.toString() }
+                ]
+            };
+        }
     };
 
     const handleInput = (idx, val) => {
@@ -141,13 +154,14 @@ WH.initD3('viz', ({ el, width, height, state }) => {
             .style('min-width', '0')
             .style('min-height', '0')
             .style('box-sizing', 'border-box')
-            .on('pointerdown', (e, d, i) => {
-                state.selectedIdx = state.gridData.indexOf(d);
+            .on('pointerdown', function(e) {
+                const currentD = d3.select(this).datum();
+                state.selectedIdx = state.gridData.indexOf(currentD);
             });
 
         // Add inputs to enter selection with strict sizing limit guards
         cellsEnter.append('input')
-            .attr('type', 'tel') // tel brings up number pad better than 'number' on some mobile OS
+            .attr('type', 'tel') 
             .attr('inputmode', 'numeric')
             .attr('pattern', '[1-9]*')
             .attr('maxlength', '1')
@@ -163,12 +177,17 @@ WH.initD3('viz', ({ el, width, height, state }) => {
             .style('font-weight', '500')
             .style('outline', 'none')
             .style('padding', '0')
-            .on('input', function(e, d) {
-                const idx = state.gridData.indexOf(d);
-                handleInput(idx, this.value);
+            .on('input', function(e) {
+                // 使用 d3.select(this).datum() 確保拿到最新資料參照
+                const currentD = d3.select(this).datum();
+                const idx = state.gridData.indexOf(currentD);
+                if (idx !== -1) {
+                    handleInput(idx, this.value);
+                }
             })
-            .on('focus', (e, d) => {
-                state.selectedIdx = state.gridData.indexOf(d);
+            .on('focus', function(e) {
+                const currentD = d3.select(this).datum();
+                state.selectedIdx = state.gridData.indexOf(currentD);
             });
 
         // Merge and update
@@ -225,7 +244,7 @@ WH.initD3('viz', ({ el, width, height, state }) => {
         let errCount = 0;
         let complete = true;
 
-        state.gridData.forEach((d, i) => {
+        state.gridData.forEach((d) => {
             if (d.value === null) {
                 complete = false;
             } else if (d.value !== d.solution) {
