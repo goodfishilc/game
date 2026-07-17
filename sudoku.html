@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML5 現代互動數獨</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --border-dark: #333;
+            --border-light: #ccc;
+            --bg-selected: #e3f2fd;
+            --bg-readonly: #f5f5f5;
+            --error-color: #f44336;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #fafafa;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        main {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            text-align: center;
+            max-width: 450px;
+            width: 100%;
+        }
+
+        header h1 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 1.8rem;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        select, button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border-light);
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        select:focus, button:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button.secondary {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+
+        /* 數獨 9x9 網格系統 */
+        .sudoku-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            border: 3px solid var(--border-dark);
+            background-color: var(--border-dark);
+            gap: 1px; /* 用 gap 來形成細線網格 */
+            margin-bottom: 20px;
+            aspect-ratio: 1 / 1;
+        }
+
+        .cell {
+            background-color: white;
+            border: none;
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #333;
+            padding: 0;
+            outline: none;
+        }
+
+        /* 3x3 粗邊框效果 */
+        .cell:nth-child(3n) {
+            border-right: 2px solid var(--border-dark);
+        }
+        .cell:nth-child(9n) {
+            border-right: none; /* 移除最右側粗線 */
+        }
+        /* 處理橫向粗線：第19-27格(第3列)與第46-54格(第6列)下方加粗線 */
+        .cell:nth-child(n+19):nth-child(-n+27),
+        .cell:nth-child(n+46):nth-child(-n+54) {
+            border-bottom: 2px solid var(--border-dark);
+        }
+
+        .cell:disabled {
+            background-color: var(--bg-readonly);
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        .cell:focus {
+            background-color: var(--bg-selected);
+        }
+
+        .cell.error {
+            background-color: #ffebee;
+            color: var(--error-color);
+        }
+
+        footer {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<main>
+    <header>
+        <h1>經典數獨</h1>
+    </header>
+
+    <section class="controls">
+        <select id="difficulty">
+            <option value="easy">簡單 (Easy)</option>
+            <option value="medium" selected>中等 (Medium)</option>
+            <option value="hard">困難 (Hard)</option>
+        </select>
+        <button id="reset-btn" class="secondary">重新開始</button>
+        <button id="check-btn">檢查答案</button>
+    </section>
+
+    <!-- 數獨 9x9 網格 -->
+    <article id="board" class="sudoku-grid"></article>
+
+    <footer>
+        <p>提示：填入 1 至 9 的數字，同一個 3x3 九宮格、橫列、直行不可有重複數字。</p>
+    </footer>
+</main>
+
+<script>
+    // 預設遊戲題目：0 代表空位
+    const puzzles = {
+        easy: [
+            [5,3,0,0,7,0,0,0,0],
+            [6,0,0,1,9,5,0,0,0],
+            [0,9,8,0,0,0,0,6,0],
+            [8,0,0,0,6,0,0,0,3],
+            [4,0,0,8,0,3,0,0,1],
+            [7,0,0,0,2,0,0,0,6],
+            [0,6,0,0,0,0,2,8,0],
+            [0,0,0,4,1,9,0,0,5],
+            [0,0,0,0,8,0,0,7,9]
+        ],
+        medium: [
+            [0,0,0,2,6,0,7,0,1],
+            [6,8,0,0,7,0,0,9,0],
+            [1,9,0,0,0,4,5,0,0],
+            [8,2,0,1,0,0,0,4,0],
+            [0,0,4,6,0,2,9,0,0],
+            [0,5,0,0,0,3,0,2,8],
+            [0,0,9,3,0,0,0,7,4],
+            [0,4,0,0,5,0,0,3,6],
+            [7,0,3,0,1,8,0,0,0]
+        ],
+        hard: [
+            [0,0,0,6,0,0,4,0,0],
+            [7,0,0,0,0,3,6,0,0],
+            [0,0,0,0,9,1,0,8,0],
+            [0,0,0,0,0,0,0,0,0],
+            [0,5,0,1,8,0,0,0,3],
+            [0,0,0,3,0,6,0,4,5],
+            [0,4,0,2,0,0,0,6,0],
+            [9,0,3,0,0,0,0,0,0],
+            [0,2,0,0,0,0,1,0,0]
+        ]
+    };
+
+    const boardElement = document.getElementById('board');
+    const difficultySelect = document.getElementById('difficulty');
+    const resetBtn = document.getElementById('reset-btn');
+    const checkBtn = document.getElementById('check-btn');
+
+    let currentPuzzle = [];
+
+    // 初始化網格
+    function initBoard() {
+        boardElement.innerHTML = '';
+        const level = difficultySelect.value;
+        // 複製一份陣列避免修改到原始範本
+        currentPuzzle = JSON.parse(JSON.stringify(puzzles[level]));
+
+        for (let row = 0; row < 9; row++) {
+            for (let col = 0; col < 9; col++) {
+                const value = currentPuzzle[row][col];
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.inputMode = 'numeric'; // 行動裝置鍵盤優化
+                input.pattern = '[1-9]*';
+                input.maxLength = 1;
+                input.classList.add('cell');
+                input.dataset.row = row;
+                input.dataset.col = col;
+
+                if (value !== 0) {
+                    input.value = value;
+                    input.disabled = true; // 預設題目數字不可修改
+                } else {
+                    // 輸入限制：只能輸入 1-9
+                    input.addEventListener('input', (e) => {
+                        const val = e.target.value;
+                        if (!/^[1-9]$/.test(val)) {
+                            e.target.value = '';
+                        }
+                        e.target.classList.remove('error');
+                    });
+                }
+                boardElement.appendChild(input);
+            }
+        }
+    }
+
+    // 檢查使用者輸入答案是否有重複/錯誤
+    function checkSolution() {
+        const inputs = boardElement.querySelectorAll('.cell');
+        let hasError = false;
+
+        // 1. 清除上一次的錯誤視覺狀態
+        inputs.forEach(input => input.classList.remove('error'));
+
+        // 建立 9x9 的暫存矩陣收集當前答案
+        const currentGrid = Array.from({ length: 9 }, () => Array(9).fill(0));
+        inputs.forEach(input => {
+            const r = parseInt(input.dataset.row);
+            const c = parseInt(input.dataset.col);
+            currentGrid[r][c] = input.value ? parseInt(input.value) : 0;
+        });
+
+        // 2. 驗證重複性 (橫、直、九宮格)
+        inputs.forEach(input => {
+            if (input.disabled || !input.value) return; // 跳過預設題和空格
+
+            const r = parseInt(input.dataset.row);
+            const c = parseInt(input.dataset.col);
+            const val = currentGrid[r][c];
+
+            // 檢查同列 (Row) 是否重複
+            for (let i = 0; i < 9; i++) {
+                if (i !== c && currentGrid[r][i] === val) {
+                    input.classList.add('error');
+                    hasError = true;
+                }
+            }
+
+            // 檢查同行 (Column) 是否重複
+            for (let i = 0; i < 9; i++) {
+                if (i !== r && currentGrid[i][c] === val) {
+                    input.classList.add('error');
+                    hasError = true;
+                }
+            }
+
+            // 檢查 3x3 九宮格是否重複
+            const boxRowStart = Math.floor(r / 3) * 3;
+            const boxColStart = Math.floor(c / 3) * 3;
+            for (let i = boxRowStart; i < boxRowStart + 3; i++) {
+                for (let j = boxColStart; j < boxColStart + 3; j++) {
+                    if ((i !== r || j !== c) && currentGrid[i][j] === val) {
+                        input.classList.add('error');
+                        hasError = true;
+                    }
+                }
+            }
+        });
+
+        if (hasError) {
+            alert('發現衝突！標示為紅色的方格有重複的數字，請再檢查一下。');
+        } else {
+            // 檢查是否全部填滿且無誤
+            const isComplete = Array.from(inputs).every(input => input.value !== '');
+            if (isComplete) {
+                alert('恭喜！你成功完成了這盤數獨！🎉');
+            } else {
+                alert('目前填入的數字都沒有衝突，繼續加油！💪');
+            }
+        }
+    }
+
+    // 事件監聽
+    difficultySelect.addEventListener('change', initBoard);
+    resetBtn.addEventListener('click', initBoard);
+    checkBtn.addEventListener('click', checkSolution);
+
+    // 網頁載入時初始化
+    window.onload = initBoard;
+</script>
+
+</body>
+</html>
