@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Sudoku Widget (Dynamic Size)</title>
+    <title>Sudoku Widget (Toggle Highlight)</title>
     <!-- 引入 D3.js -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
@@ -14,11 +14,12 @@
         select, button { padding: 6px 12px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; }
         button:hover { background: #e0e0e0; }
         #mock-hud { font-weight: bold; color: #333; margin-left: 15px; border-left: 2px solid #ccc; padding-left: 15px; }
+        .checkbox-label { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 14px; user-select: none; }
     </style>
 </head>
 <body class="spark-widget-shell">
 
-<!-- 本地測試用的控制列 (加入了尺寸選擇) -->
+<!-- 本地測試用的控制列 (加入了提示開關) -->
 <div class="mock-ui-panel">
     <label>尺寸: 
         <select id="size-select">
@@ -34,6 +35,10 @@
             <option value="Hard">Hard</option>
         </select>
     </label>
+    <label class="checkbox-label">
+        <input type="checkbox" id="toggle-highlight" checked>
+        相同數字提示
+    </label>
     <button id="btn-validate">Validate (驗證)</button>
     <button id="btn-reset">Reset (重置)</button>
     <div id="mock-hud">Status: Playing | Mistakes: 0</div>
@@ -44,16 +49,11 @@
 
 <script>
 // ==========================================
-// 1. 遊戲題庫資料集 (新增 4x4 與 6x6)
+// 1. 遊戲題庫資料集
 // ==========================================
 const GAME_DATA = {
     '4': {
-        solution: [
-            1,2,3,4,
-            3,4,1,2,
-            2,1,4,3,
-            4,3,2,1
-        ],
+        solution: [1,2,3,4, 3,4,1,2, 2,1,4,3, 4,3,2,1],
         masks: {
             'Easy':   [0,0,1,0, 0,0,0,1, 1,0,0,0, 0,1,0,0],
             'Medium': [1,0,1,0, 0,1,0,1, 1,0,1,0, 0,1,0,1],
@@ -62,12 +62,8 @@ const GAME_DATA = {
     },
     '6': {
         solution: [
-            1,2,3, 4,5,6,
-            4,5,6, 1,2,3,
-            2,3,1, 5,6,4,
-            5,6,4, 2,3,1,
-            3,1,2, 6,4,5,
-            6,4,5, 3,1,2
+            1,2,3, 4,5,6,  4,5,6, 1,2,3,  2,3,1, 5,6,4,
+            5,6,4, 2,3,1,  3,1,2, 6,4,5,  6,4,5, 3,1,2
         ],
         masks: {
             'Easy':   [0,1,0,0,1,0, 0,0,1,0,0,1, 1,0,0,1,0,0, 0,1,0,0,1,0, 0,0,1,0,0,0, 1,0,0,1,0,1],
@@ -77,15 +73,9 @@ const GAME_DATA = {
     },
     '9': {
         solution: [
-            5, 3, 4, 6, 7, 8, 9, 1, 2,
-            6, 7, 2, 1, 9, 5, 3, 4, 8,
-            1, 9, 8, 3, 4, 2, 5, 6, 7,
-            8, 5, 9, 7, 6, 1, 4, 2, 3,
-            4, 2, 6, 8, 5, 3, 7, 9, 1,
-            7, 1, 3, 9, 2, 4, 8, 5, 6,
-            9, 6, 1, 5, 3, 7, 2, 8, 4,
-            2, 8, 7, 4, 1, 9, 6, 3, 5,
-            3, 4, 5, 2, 8, 6, 1, 7, 9
+            5,3,4,6,7,8,9,1,2, 6,7,2,1,9,5,3,4,8, 1,9,8,3,4,2,5,6,7,
+            8,5,9,7,6,1,4,2,3, 4,2,6,8,5,3,7,9,1, 7,1,3,9,2,4,8,5,6,
+            9,6,1,5,3,7,2,8,4, 2,8,7,4,1,9,6,3,5, 3,4,5,2,8,6,1,7,9
         ],
         masks: {
             'Easy':   [0,0,1,0,0,1,0,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,1,0,0,0,1,1,0,0,0,0,1,1,0,1,0,1,0,1,0,1,1,0,0,0,0,1,1,0,0,0,1,1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,1,0,1,0,0,1,0,0],
@@ -95,11 +85,10 @@ const GAME_DATA = {
     }
 };
 
-// 輔助函式：根據尺寸取得「宮格」的寬與高
 const getBoxDimensions = (size) => {
-    if (size === 4) return { boxW: 2, boxH: 2 }; // 4x4: 2x2 區塊
-    if (size === 6) return { boxW: 3, boxH: 2 }; // 6x6: 3x2 區塊
-    return { boxW: 3, boxH: 3 };                 // 9x9: 3x3 區塊
+    if (size === 4) return { boxW: 2, boxH: 2 }; 
+    if (size === 6) return { boxW: 3, boxH: 2 }; 
+    return { boxW: 3, boxH: 3 };                 
 };
 
 // ==========================================
@@ -115,9 +104,7 @@ window.WH = {
         const state = new Proxy(stateObj, {
             set(target, prop, value) {
                 target[prop] = value;
-                if (listeners[prop]) {
-                    listeners[prop].forEach(fn => fn(value));
-                }
+                if (listeners[prop]) listeners[prop].forEach(fn => fn(value));
                 return true;
             }
         });
@@ -136,19 +123,16 @@ window.WH = {
             }
         };
 
-        // 綁定本地端 UI
-        document.getElementById('size-select').addEventListener('change', (e) => {
-            state.size = parseInt(e.target.value);
+        document.getElementById('size-select').addEventListener('change', (e) => state.size = parseInt(e.target.value));
+        document.getElementById('diff-select').addEventListener('change', (e) => state.difficulty = e.target.value);
+        
+        // [新增] 監聽勾選框事件，改變狀態
+        document.getElementById('toggle-highlight').addEventListener('change', (e) => {
+            state.highlightSame = e.target.checked;
         });
-        document.getElementById('diff-select').addEventListener('change', (e) => {
-            state.difficulty = e.target.value;
-        });
-        document.getElementById('btn-validate').addEventListener('click', () => {
-            config.params.validate.onClick(state);
-        });
-        document.getElementById('btn-reset').addEventListener('click', () => {
-            config.params.reset.onClick(state);
-        });
+
+        document.getElementById('btn-validate').addEventListener('click', () => config.params.validate.onClick(state));
+        document.getElementById('btn-reset').addEventListener('click', () => config.params.reset.onClick(state));
 
         window.__mockState = state;
         window.__mockUI = ui;
@@ -157,26 +141,12 @@ window.WH = {
     initD3: function(id, callback) {
         setTimeout(() => {
             const el = document.getElementById(id);
-            const resizeFn = callback({
-                el: el,
-                width: el.clientWidth || 350,
-                height: el.clientHeight || 420,
-                state: window.__mockState,
-                ui: window.__mockUI
-            });
-            window.addEventListener('resize', () => {
-                if (resizeFn) resizeFn(el.clientWidth, el.clientHeight);
-            });
+            const resizeFn = callback({ el, width: el.clientWidth || 350, height: el.clientHeight || 420, state: window.__mockState, ui: window.__mockUI });
+            window.addEventListener('resize', () => { if (resizeFn) resizeFn(el.clientWidth, el.clientHeight); });
         }, 100);
     },
     getColor: function(name) {
-        const colors = {
-            '--surface-container': '#ffffff',
-            '--outline': '#999999',
-            '--primary': '#1a73e8',
-            '--error': '#d93025',
-            '--on-surface-default': '#202124'
-        };
+        const colors = { '--surface-container': '#ffffff', '--outline': '#999999', '--primary': '#1a73e8', '--error': '#d93025', '--on-surface-default': '#202124' };
         return colors[name] || '#000000';
     },
     transparent: function(color, opacity) {
@@ -187,7 +157,7 @@ window.WH = {
 };
 
 // ==========================================
-// 3. 核心程式碼 (加入尺寸支援)
+// 3. 核心程式碼
 // ==========================================
 const { state, ui } = WH.createApp({
     title: "Sudoku",
@@ -197,7 +167,8 @@ const { state, ui } = WH.createApp({
         validate: { type: 'button', label: 'Validate', onClick: (s) => { s.triggerValidate = (s.triggerValidate || 0) + 1; } },
         reset: { type: 'button', label: 'Reset', onClick: (s) => { s.triggerReset = (s.triggerReset || 0) + 1; } }
     },
-    internal_state: { gridData: [], selectedIdx: -1, mistakes: 0, triggerValidate: 0, triggerReset: 0, size: 9 },
+    // [新增] highlightSame 初始設定為 true
+    internal_state: { gridData: [], selectedIdx: -1, mistakes: 0, triggerValidate: 0, triggerReset: 0, size: 9, highlightSame: true },
     sizing: { viz: { height: 420 } },
     editorial: { hud: [ { label: "Status", value: "Playing" }, { label: "Mistakes", value: "0" } ] }
 });
@@ -208,8 +179,10 @@ WH.initD3('viz', ({ el, width, height, state, ui }) => {
     const COLOR_PRIMARY = WH.getColor('--primary');
     const COLOR_ERROR = WH.getColor('--error');
     const COLOR_ON_SURFACE = WH.getColor('--on-surface-default');
-    const COLOR_HIGHLIGHT = WH.transparent(COLOR_PRIMARY, 0.15);
-    const COLOR_SELECTED = WH.transparent(COLOR_PRIMARY, 0.3);
+    
+    const COLOR_HIGHLIGHT = WH.transparent(COLOR_PRIMARY, 0.15); 
+    const COLOR_SAME_VAL = WH.transparent(COLOR_PRIMARY, 0.3);   
+    const COLOR_ACTIVE = '#8ab4f8';                              
 
     const container = d3.select(el)
         .style('display', 'flex')
@@ -226,7 +199,6 @@ WH.initD3('viz', ({ el, width, height, state, ui }) => {
     
     const grid = container.append('div')
         .style('display', 'grid')
-        // 初始化時給個預設，生成板塊時會動態更新
         .style('grid-template-columns', `repeat(${state.size}, 1fr)`) 
         .style('width', `${boardSize}px`)
         .style('height', `${boardSize}px`)
@@ -234,6 +206,12 @@ WH.initD3('viz', ({ el, width, height, state, ui }) => {
         .style('background', COLOR_OUTLINE)
         .style('box-sizing', 'border-box')
         .style('overflow', 'hidden');
+
+    document.addEventListener('pointerdown', (e) => {
+        if (!e.target.closest('.sudoku-cell') && !e.target.closest('.mock-ui-panel')) {
+            state.selectedIdx = -1;
+        }
+    });
 
     const updateHUD = (status, mistakes) => {
         if (ui && ui.setEditorial) {
@@ -252,28 +230,23 @@ WH.initD3('viz', ({ el, width, height, state, ui }) => {
         state.mistakes = 0;
         state.selectedIdx = -1;
         
-        // 切換尺寸時動態更新 CSS Grid 行數
         grid.style('grid-template-columns', `repeat(${state.size}, 1fr)`);
-        
         updateHUD("Playing", 0);
     };
 
     const handleInput = (idx, val) => {
         const num = parseInt(val);
-        // 輸入驗證：不能大於當前尺寸 (例如 6x6 時，不能輸入 7-9)
         if (isNaN(num) || num < 1 || num > state.size) {
             state.gridData[idx].value = null;
         } else {
             state.gridData[idx].value = num;
             state.gridData[idx].error = false;
         }
-        state.gridData = [...state.gridData];
+        state.gridData = [...state.gridData]; 
     };
 
     const render = () => {
         const cells = grid.selectAll('.sudoku-cell').data(state.gridData);
-
-        // 重要：當尺寸變小時，移除多餘的格子
         cells.exit().remove();
 
         const cellsEnter = cells.enter()
@@ -287,7 +260,7 @@ WH.initD3('viz', ({ el, width, height, state, ui }) => {
             .style('min-width', '0')
             .style('min-height', '0')
             .style('box-sizing', 'border-box')
-            .on('pointerdown', function() {
+            .on('pointerdown', function(e) {
                 const currentD = d3.select(this).datum();
                 state.selectedIdx = state.gridData.indexOf(currentD);
             });
@@ -295,7 +268,6 @@ WH.initD3('viz', ({ el, width, height, state, ui }) => {
         cellsEnter.append('input')
             .attr('type', 'tel') 
             .attr('inputmode', 'numeric')
-            // 正規表達式動態支援 (不強求只能1-9)
             .attr('pattern', '[1-9]*')
             .attr('maxlength', '1')
             .style('width', '100%')
@@ -318,9 +290,10 @@ WH.initD3('viz', ({ el, width, height, state, ui }) => {
             });
 
         const cellsAll = cellsEnter.merge(cells);
-
         const currentSize = state.size;
         const { boxW, boxH } = getBoxDimensions(currentSize);
+
+        const activeValue = state.selectedIdx !== -1 ? state.gridData[state.selectedIdx].value : null;
 
         cellsAll.each(function(d, i) {
             const row = Math.floor(i / currentSize);
@@ -329,17 +302,17 @@ WH.initD3('viz', ({ el, width, height, state, ui }) => {
             const selRow = Math.floor(selIdx / currentSize);
             const selCol = selIdx % currentSize;
             
-            // 根據區塊大小(boxW, boxH)來計算宮格編號
             const selBox = selIdx === -1 ? -1 : Math.floor(selRow / boxH) * (currentSize / boxW) + Math.floor(selCol / boxW);
             const curBox = Math.floor(row / boxH) * (currentSize / boxW) + Math.floor(col / boxW);
 
             const isSelected = i === selIdx;
+            // [新增] 加入 state.highlightSame 判斷，若關閉則不亮底色
+            const isSameValue = state.highlightSame && (activeValue !== null) && (d.value === activeValue); 
             const isHighlighted = selIdx !== -1 && (row === selRow || col === selCol || curBox === selBox);
             
             const cell = d3.select(this);
             const input = cell.select('input');
 
-            // 動態邊框計算 (在每一宮格的邊界畫粗體線)
             const isRightEdge = col % boxW === (boxW - 1) && col !== (currentSize - 1);
             const isBottomEdge = row % boxH === (boxH - 1) && row !== (currentSize - 1);
             
@@ -347,11 +320,12 @@ WH.initD3('viz', ({ el, width, height, state, ui }) => {
                 .style('border-bottom', isBottomEdge ? `2px solid ${COLOR_OUTLINE}` : `0.5px solid ${COLOR_OUTLINE}`);
 
             let bg = COLOR_SURFACE;
-            if (isSelected) bg = COLOR_SELECTED;
+            if (isSelected) bg = COLOR_ACTIVE;
+            else if (isSameValue) bg = COLOR_SAME_VAL; 
             else if (isHighlighted) bg = COLOR_HIGHLIGHT;
+            
             cell.style('background', bg);
 
-            // 字體大小隨網格密度變化
             input.property('value', d.value || '')
                  .property('disabled', d.fixed)
                  .style('font-size', `${boardSize / (currentSize * 2)}px`)
@@ -360,11 +334,11 @@ WH.initD3('viz', ({ el, width, height, state, ui }) => {
         });
     };
 
-    // 訂閱事件
     state._subscribe('gridData', render);
     state._subscribe('selectedIdx', render);
     state._subscribe('difficulty', () => { generateBoard(); render(); });
-    state._subscribe('size', () => { generateBoard(); render(); }); // 監聽尺寸改變
+    state._subscribe('size', () => { generateBoard(); render(); });
+    state._subscribe('highlightSame', render); // [新增] 當開關切換時，立即重新渲染盤面底色
     state._subscribe('triggerReset', () => { generateBoard(); render(); });
     
     state._subscribe('triggerValidate', () => {
@@ -383,7 +357,6 @@ WH.initD3('viz', ({ el, width, height, state, ui }) => {
     generateBoard();
     render();
 
-    // RWD 更新畫布大小
     return (arg1, arg2) => {
         let wVal = (typeof arg1 === 'object' && arg1 !== null) ? arg1.width : arg1;
         let hVal = (typeof arg1 === 'object' && arg1 !== null) ? arg1.height : arg2;
