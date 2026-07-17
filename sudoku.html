@@ -1,319 +1,270 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML5 現代互動數獨</title>
-    <style>
-        :root {
-            --primary-color: #4a90e2;
-            --border-dark: #333;
-            --border-light: #ccc;
-            --bg-selected: #e3f2fd;
-            --bg-readonly: #f5f5f5;
-            --error-color: #f44336;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: #fafafa;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-
-        main {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            text-align: center;
-            max-width: 450px;
-            width: 100%;
-        }
-
-        header h1 {
-            margin: 0 0 10px 0;
-            color: #333;
-            font-size: 1.8rem;
-        }
-
-        .controls {
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-        }
-
-        select, button {
-            padding: 8px 16px;
-            border-radius: 6px;
-            border: 1px solid var(--border-light);
-            font-size: 0.95rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        select:focus, button:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
-
-        button {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-        }
-
-        button:hover {
-            opacity: 0.9;
-        }
-
-        button.secondary {
-            background-color: #e0e0e0;
-            color: #333;
-        }
-
-        /* 數獨 9x9 網格系統 */
-        .sudoku-grid {
-            display: grid;
-            grid-template-columns: repeat(9, 1fr);
-            border: 3px solid var(--border-dark);
-            background-color: var(--border-dark);
-            gap: 1px; /* 用 gap 來形成細線網格 */
-            margin-bottom: 20px;
-            aspect-ratio: 1 / 1;
-        }
-
-        .cell {
-            background-color: white;
-            border: none;
-            text-align: center;
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: #333;
-            padding: 0;
-            outline: none;
-        }
-
-        /* 3x3 粗邊框效果 */
-        .cell:nth-child(3n) {
-            border-right: 2px solid var(--border-dark);
-        }
-        .cell:nth-child(9n) {
-            border-right: none; /* 移除最右側粗線 */
-        }
-        /* 處理橫向粗線：第19-27格(第3列)與第46-54格(第6列)下方加粗線 */
-        .cell:nth-child(n+19):nth-child(-n+27),
-        .cell:nth-child(n+46):nth-child(-n+54) {
-            border-bottom: 2px solid var(--border-dark);
-        }
-
-        .cell:disabled {
-            background-color: var(--bg-readonly);
-            color: #666;
-            cursor: not-allowed;
-        }
-
-        .cell:focus {
-            background-color: var(--bg-selected);
-        }
-
-        .cell.error {
-            background-color: #ffebee;
-            color: var(--error-color);
-        }
-
-        footer {
-            font-size: 0.85rem;
-            color: #888;
-            margin-top: 15px;
-        }
-    </style>
-</head>
-<body>
-
-<main>
-    <header>
-        <h1>經典數獨</h1>
-    </header>
-
-    <section class="controls">
-        <select id="difficulty">
-            <option value="easy">簡單 (Easy)</option>
-            <option value="medium" selected>中等 (Medium)</option>
-            <option value="hard">困難 (Hard)</option>
-        </select>
-        <button id="reset-btn" class="secondary">重新開始</button>
-        <button id="check-btn">檢查答案</button>
-    </section>
-
-    <!-- 數獨 9x9 網格 -->
-    <article id="board" class="sudoku-grid"></article>
-
-    <footer>
-        <p>提示：填入 1 至 9 的數字，同一個 3x3 九宮格、橫列、直行不可有重複數字。</p>
-    </footer>
-</main>
-
+<!-- ... existing code ... -->
+<body class="spark-widget-shell">
 <script>
-    // 預設遊戲題目：0 代表空位
-    const puzzles = {
-        easy: [
-            [5,3,0,0,7,0,0,0,0],
-            [6,0,0,1,9,5,0,0,0],
-            [0,9,8,0,0,0,0,6,0],
-            [8,0,0,0,6,0,0,0,3],
-            [4,0,0,8,0,3,0,0,1],
-            [7,0,0,0,2,0,0,0,6],
-            [0,6,0,0,0,0,2,8,0],
-            [0,0,0,4,1,9,0,0,5],
-            [0,0,0,0,8,0,0,7,9]
-        ],
-        medium: [
-            [0,0,0,2,6,0,7,0,1],
-            [6,8,0,0,7,0,0,9,0],
-            [1,9,0,0,0,4,5,0,0],
-            [8,2,0,1,0,0,0,4,0],
-            [0,0,4,6,0,2,9,0,0],
-            [0,5,0,0,0,3,0,2,8],
-            [0,0,9,3,0,0,0,7,4],
-            [0,4,0,0,5,0,0,3,6],
-            [7,0,3,0,1,8,0,0,0]
-        ],
-        hard: [
-            [0,0,0,6,0,0,4,0,0],
-            [7,0,0,0,0,3,6,0,0],
-            [0,0,0,0,9,1,0,8,0],
-            [0,0,0,0,0,0,0,0,0],
-            [0,5,0,1,8,0,0,0,3],
-            [0,0,0,3,0,6,0,4,5],
-            [0,4,0,2,0,0,0,6,0],
-            [9,0,3,0,0,0,0,0,0],
-            [0,2,0,0,0,0,1,0,0]
+/**
+ * Sudoku Logic & Visualization
+ * Uses D3.js for a responsive 9x9 grid.
+ * Mobile-friendly input handling and real-time highlighting.
+ */
+
+const SOLUTION = [
+    5, 3, 4, 6, 7, 8, 9, 1, 2,
+    6, 7, 2, 1, 9, 5, 3, 4, 8,
+    1, 9, 8, 3, 4, 2, 5, 6, 7,
+    8, 5, 9, 7, 6, 1, 4, 2, 3,
+    4, 2, 6, 8, 5, 3, 7, 9, 1,
+    7, 1, 3, 9, 2, 4, 8, 5, 6,
+    9, 6, 1, 5, 3, 7, 2, 8, 4,
+    2, 8, 7, 4, 1, 9, 6, 3, 5,
+    3, 4, 5, 2, 8, 6, 1, 7, 9
+];
+
+// Difficulty masks (1 = hidden)
+const MASKS = {
+    'Easy':   [0,0,1,0,0,1,0,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,1,0,0,0,1,1,0,0,0,0,1,1,0,1,0,1,0,1,0,1,1,0,0,0,0,1,1,0,0,0,1,1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,1,0,1,0,0,1,0,0],
+    'Medium': [1,0,1,0,0,1,0,1,0,1,0,1,1,0,1,1,0,0,0,1,0,0,1,0,1,1,1,0,0,1,1,0,1,0,0,1,1,1,1,0,1,0,1,1,1,1,0,0,1,0,1,1,0,0,1,1,1,0,1,0,0,1,0,0,0,1,1,0,1,1,0,1,0,1,0,1,0,0,1,0,1],
+    'Hard':   [1,1,1,0,0,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,0,1,1,0,0,1,1]
+};
+
+const { state } = WH.createApp({
+    title: "Sudoku",
+    params: {
+        difficulty: {
+            type: 'select',
+            value: 'Easy',
+            options: ['Easy', 'Medium', 'Hard'],
+            label: 'Difficulty'
+        },
+        validate: {
+            type: 'button',
+            label: 'Validate',
+            onClick: (s) => { s.triggerValidate = (s.triggerValidate || 0) + 1; }
+        },
+        reset: {
+            type: 'button',
+            label: 'Reset',
+            onClick: (s) => { s.triggerReset = (s.triggerReset || 0) + 1; }
+        }
+    },
+    internal_state: {
+        gridData: [],
+        selectedIdx: -1,
+        mistakes: 0,
+        triggerValidate: 0,
+        triggerReset: 0
+    },
+    sizing: { viz: { height: 420 } },
+    editorial: {
+        hud: [
+            { label: "Status", value: "Playing" },
+            { label: "Mistakes", value: "0" }
         ]
+    }
+});
+
+WH.initD3('viz', ({ el, width, height, state }) => {
+    // Styling constants
+    const COLOR_SURFACE = WH.getColor('--surface-container');
+    const COLOR_OUTLINE = WH.getColor('--outline');
+    const COLOR_PRIMARY = WH.getColor('--primary');
+    const COLOR_ERROR = WH.getColor('--error');
+    const COLOR_ON_SURFACE = WH.getColor('--on-surface-default');
+    const COLOR_HIGHLIGHT = WH.transparent(WH.getColor('--primary'), 0.15);
+    const COLOR_SELECTED = WH.transparent(WH.getColor('--primary'), 0.3);
+
+    // Container setup
+    const container = d3.select(el)
+        .style('display', 'flex')
+        .style('justify-content', 'center')
+        .style('align-items', 'center')
+        .style('height', '100%')
+        .style('padding', '12px')
+        .style('box-sizing', 'border-box');
+
+    const boardSize = Math.max(150, Math.min(width - 24, height - 24, 380));
+    
+    const grid = container.append('div')
+        .style('display', 'grid')
+        .style('grid-template-columns', 'repeat(9, 1fr)')
+        .style('width', `${boardSize}px`)
+        .style('height', `${boardSize}px`)
+        .style('border', `2px solid ${COLOR_OUTLINE}`)
+        .style('background', COLOR_OUTLINE)
+        .style('box-sizing', 'border-box')
+        .style('overflow', 'hidden');
+
+    const generateBoard = () => {
+        const mask = MASKS[state.difficulty] || MASKS.Easy;
+        state.gridData = SOLUTION.map((val, i) => ({
+            solution: val,
+            fixed: mask[i] === 0,
+            value: mask[i] === 0 ? val : null,
+            error: false
+        }));
+        state.mistakes = 0;
+        state.selectedIdx = -1;
+        updateHUD("Playing", 0);
     };
 
-    const boardElement = document.getElementById('board');
-    const difficultySelect = document.getElementById('difficulty');
-    const resetBtn = document.getElementById('reset-btn');
-    const checkBtn = document.getElementById('check-btn');
-
-    let currentPuzzle = [];
-
-    // 初始化網格
-    function initBoard() {
-        boardElement.innerHTML = '';
-        const level = difficultySelect.value;
-        // 複製一份陣列避免修改到原始範本
-        currentPuzzle = JSON.parse(JSON.stringify(puzzles[level]));
-
-        for (let row = 0; row < 9; row++) {
-            for (let col = 0; col < 9; col++) {
-                const value = currentPuzzle[row][col];
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.inputMode = 'numeric'; // 行動裝置鍵盤優化
-                input.pattern = '[1-9]*';
-                input.maxLength = 1;
-                input.classList.add('cell');
-                input.dataset.row = row;
-                input.dataset.col = col;
-
-                if (value !== 0) {
-                    input.value = value;
-                    input.disabled = true; // 預設題目數字不可修改
-                } else {
-                    // 輸入限制：只能輸入 1-9
-                    input.addEventListener('input', (e) => {
-                        const val = e.target.value;
-                        if (!/^[1-9]$/.test(val)) {
-                            e.target.value = '';
-                        }
-                        e.target.classList.remove('error');
-                    });
-                }
-                boardElement.appendChild(input);
-            }
-        }
-    }
-
-    // 檢查使用者輸入答案是否有重複/錯誤
-    function checkSolution() {
-        const inputs = boardElement.querySelectorAll('.cell');
-        let hasError = false;
-
-        // 1. 清除上一次的錯誤視覺狀態
-        inputs.forEach(input => input.classList.remove('error'));
-
-        // 建立 9x9 的暫存矩陣收集當前答案
-        const currentGrid = Array.from({ length: 9 }, () => Array(9).fill(0));
-        inputs.forEach(input => {
-            const r = parseInt(input.dataset.row);
-            const c = parseInt(input.dataset.col);
-            currentGrid[r][c] = input.value ? parseInt(input.value) : 0;
+    const updateHUD = (status, mistakes) => {
+        ui.setEditorial({
+            hud: [
+                { label: "Status", value: status },
+                { label: "Mistakes", value: mistakes.toString() }
+            ]
         });
+    };
 
-        // 2. 驗證重複性 (橫、直、九宮格)
-        inputs.forEach(input => {
-            if (input.disabled || !input.value) return; // 跳過預設題和空格
-
-            const r = parseInt(input.dataset.row);
-            const c = parseInt(input.dataset.col);
-            const val = currentGrid[r][c];
-
-            // 檢查同列 (Row) 是否重複
-            for (let i = 0; i < 9; i++) {
-                if (i !== c && currentGrid[r][i] === val) {
-                    input.classList.add('error');
-                    hasError = true;
-                }
-            }
-
-            // 檢查同行 (Column) 是否重複
-            for (let i = 0; i < 9; i++) {
-                if (i !== r && currentGrid[i][c] === val) {
-                    input.classList.add('error');
-                    hasError = true;
-                }
-            }
-
-            // 檢查 3x3 九宮格是否重複
-            const boxRowStart = Math.floor(r / 3) * 3;
-            const boxColStart = Math.floor(c / 3) * 3;
-            for (let i = boxRowStart; i < boxRowStart + 3; i++) {
-                for (let j = boxColStart; j < boxColStart + 3; j++) {
-                    if ((i !== r || j !== c) && currentGrid[i][j] === val) {
-                        input.classList.add('error');
-                        hasError = true;
-                    }
-                }
-            }
-        });
-
-        if (hasError) {
-            alert('發現衝突！標示為紅色的方格有重複的數字，請再檢查一下。');
+    const handleInput = (idx, val) => {
+        const num = parseInt(val);
+        if (isNaN(num) || num < 1 || num > 9) {
+            state.gridData[idx].value = null;
         } else {
-            // 檢查是否全部填滿且無誤
-            const isComplete = Array.from(inputs).every(input => input.value !== '');
-            if (isComplete) {
-                alert('恭喜！你成功完成了這盤數獨！🎉');
-            } else {
-                alert('目前填入的數字都沒有衝突，繼續加油！💪');
-            }
+            state.gridData[idx].value = num;
+            state.gridData[idx].error = false;
         }
-    }
+        state.gridData = [...state.gridData]; // Trigger reactivity
+    };
 
-    // 事件監聽
-    difficultySelect.addEventListener('change', initBoard);
-    resetBtn.addEventListener('click', initBoard);
-    checkBtn.addEventListener('click', checkSolution);
+    const render = () => {
+        const cells = grid.selectAll('.sudoku-cell')
+            .data(state.gridData);
 
-    // 網頁載入時初始化
-    window.onload = initBoard;
+        const cellsEnter = cells.enter()
+            .append('div')
+            .attr('class', 'sudoku-cell')
+            .style('display', 'flex')
+            .style('justify-content', 'center')
+            .style('align-items', 'center')
+            .style('background', COLOR_SURFACE)
+            .style('position', 'relative')
+            .style('min-width', '0')
+            .style('min-height', '0')
+            .style('box-sizing', 'border-box')
+            .on('pointerdown', (e, d, i) => {
+                state.selectedIdx = state.gridData.indexOf(d);
+            });
+
+        // Add inputs to enter selection with strict sizing limit guards
+        cellsEnter.append('input')
+            .attr('type', 'tel') // tel brings up number pad better than 'number' on some mobile OS
+            .attr('inputmode', 'numeric')
+            .attr('pattern', '[1-9]*')
+            .attr('maxlength', '1')
+            .style('width', '100%')
+            .style('height', '100%')
+            .style('min-width', '0')
+            .style('min-height', '0')
+            .style('box-sizing', 'border-box')
+            .style('border', 'none')
+            .style('background', 'transparent')
+            .style('text-align', 'center')
+            .style('font-size', `${boardSize / 18}px`)
+            .style('font-weight', '500')
+            .style('outline', 'none')
+            .style('padding', '0')
+            .on('input', function(e, d) {
+                const idx = state.gridData.indexOf(d);
+                handleInput(idx, this.value);
+            })
+            .on('focus', (e, d) => {
+                state.selectedIdx = state.gridData.indexOf(d);
+            });
+
+        // Merge and update
+        const cellsAll = cellsEnter.merge(cells);
+
+        cellsAll.each(function(d, i) {
+            const row = Math.floor(i / 9);
+            const col = i % 9;
+            const selIdx = state.selectedIdx;
+            const selRow = Math.floor(selIdx / 9);
+            const selCol = selIdx % 9;
+            const selBox = Math.floor(selRow / 3) * 3 + Math.floor(selCol / 3);
+            const curBox = Math.floor(row / 3) * 3 + Math.floor(col / 3);
+
+            const isSelected = i === selIdx;
+            const isHighlighted = selIdx !== -1 && (row === selRow || col === selCol || curBox === selBox);
+            
+            const cell = d3.select(this);
+            const input = cell.select('input');
+
+            // Borders
+            cell.style('border-right', col % 3 === 2 && col !== 8 ? `2px solid ${COLOR_OUTLINE}` : `0.5px solid ${COLOR_OUTLINE}`)
+                .style('border-bottom', row % 3 === 2 && row !== 8 ? `2px solid ${COLOR_OUTLINE}` : `0.5px solid ${COLOR_OUTLINE}`);
+
+            // Colors
+            let bg = COLOR_SURFACE;
+            if (isSelected) bg = COLOR_SELECTED;
+            else if (isHighlighted) bg = COLOR_HIGHLIGHT;
+            cell.style('background', bg);
+
+            // Input state
+            input.property('value', d.value || '')
+                 .property('disabled', d.fixed)
+                 .style('color', d.error ? COLOR_ERROR : (d.fixed ? COLOR_ON_SURFACE : COLOR_PRIMARY))
+                 .style('cursor', d.fixed ? 'default' : 'text');
+        });
+    };
+
+    // Subscriptions
+    state._subscribe('gridData', render);
+    state._subscribe('selectedIdx', render);
+
+    state._subscribe('difficulty', () => {
+        generateBoard();
+        render();
+    });
+
+    state._subscribe('triggerReset', () => {
+        generateBoard();
+        render();
+    });
+
+    state._subscribe('triggerValidate', () => {
+        let errCount = 0;
+        let complete = true;
+
+        state.gridData.forEach((d, i) => {
+            if (d.value === null) {
+                complete = false;
+            } else if (d.value !== d.solution) {
+                d.error = true;
+                errCount++;
+            } else {
+                d.error = false;
+            }
+        });
+
+        state.mistakes += errCount;
+        state.gridData = [...state.gridData];
+        
+        const status = (complete && errCount === 0) ? "Solved!" : "Playing";
+        updateHUD(status, state.mistakes);
+    });
+
+    // Initial boot
+    generateBoard();
+    render();
+
+    return (arg1, arg2) => {
+        let wVal, hVal;
+        if (typeof arg1 === 'object' && arg1 !== null) {
+            wVal = arg1.width;
+            hVal = arg1.height;
+        } else {
+            wVal = arg1;
+            hVal = arg2;
+        }
+        wVal = Number(wVal) || 300;
+        hVal = Number(hVal) || 300;
+        const newSize = Math.max(150, Math.min(wVal - 24, hVal - 24, 380));
+        grid.style('width', `${newSize}px`)
+            .style('height', `${newSize}px`);
+        grid.selectAll('input').style('font-size', `${newSize / 18}px`);
+        render();
+    };
+});
 </script>
-
 </body>
 </html>
